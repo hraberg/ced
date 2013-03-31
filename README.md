@@ -7,7 +7,7 @@ Unlike bloated shit like Emacs, [Ed](http://www.gnu.org/software/ed/) stays out 
 
 Ed also has a serious test suite, which is something that cannot be said for Emacs. To lose no time to a future proof-ed Ed, I've decided that the easiest way to progress is to write a C to Clojure compiler - similar to Zeta-C or Vacietis for Common Lisp, together with a thin standard C library implementation on top of the JVM. The exact details are still to be hashed out. Here projects like Cibyl can serve as inspiration, which is a MIPS to JVM compiler (primarily for J2ME use).
 
-This straight forward approach will allow for the unaltered *standard* Ed C source can be run on top of the JVM.
+This straight forward approach will allow for the unaltered *standard* Ed C source to be run on top of the JVM.
 
 Extending Ed, the REPL of champions, with a powerful Lisp such as Clojure will open up unheard of possibilities in the near and not so near future - and potentially even in the past - but let's not get ahead of ourselves!
 
@@ -59,7 +59,7 @@ Almost nothing yet. To build, run:
 
 [Vacietis - C to Common Lisp compiler](https://github.com/vsedach/Vacietis) Vladimir Sedach, 2012
 
-[musl](http://www.musl-libc.org/) Rich Felker, 2010-2013 "musl is a new general-purpose implementation of the C library. It is lightweight, fast, simple, free, and aims to be correct in the sense of standards-conformance and safety."
+[musl](http://www.musl-libc.org/) Rich Felker, 2010-2013 - "musl is a new general-purpose implementation of the C library. It is lightweight, fast, simple, free, and aims to be correct in the sense of standards-conformance and safety."
 
 [Cibyl](http://code.google.com/p/cibyl/) Simon Kagstrom, 2007-2011 - "Cibyl is a programming environment and binary translator that allows compiled C programs to execute on J2ME-capable phones."
 
