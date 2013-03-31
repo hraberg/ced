@@ -1,0 +1,4 @@
+#!/bin/sh
+
+java -cp `lein classpath` xtc.parser.Rats -in src/ -out src/xtc/lang/ src/xtc/lang/C.rats
+lein javac

@@ -1,0 +1,16 @@
+#!/bin/sh -e
+
+ED_VERSION=1.7
+MUSL_VERSION=0.9.9
+MUSL=musl-$MUSL_VERSION
+
+test -e ed-$ED_VERSION || wget -O - http://ftp.gnu.org/gnu/ed/ed-$ED_VERSION.tar.gz | tar zx
+
+test -e $MUSL || wget -O - http://www.musl-libc.org/releases/$MUSL.tar.gz | tar zx
+test -e $MUSL/config.mak || (cd $MUSL; ./configure)
+test -e $MUSL/include/bits || make -C $MUSL include/bits/alltypes.h
+test -h resources/include || (cd resources; ln -fs ../$MUSL/include)
+test -h resources/src || (cd resources; ln -fs ../$MUSL/src)
+
+test -e src/xtc/lang/C.java || ./generate-parser
+lein do run, uberjar
