@@ -47,7 +47,7 @@ Almost nothing yet. To build, run:
 
 ## References
 
-[http://www.gnu.org/fun/jokes/ed-msg.html](Ed, man! !man ed) Patrick J. LoPresti, 1991
+[Ed, man! !man ed](http://www.gnu.org/fun/jokes/ed-msg.html) Patrick J. LoPresti, 1991
 
 [xtc](http://cs.nyu.edu/rgrimm/xtc/) Paul Gazzillo and Robert Grimm, 2006-2012 -  "The xtc (eXTensible Compiler) project is exploring novel programming languages and tools to improve the expressiveness, safety, and efficiency of complex systems."
 
