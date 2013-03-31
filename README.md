@@ -41,7 +41,7 @@ Almost nothing yet. To build, run:
 ### Questions
 
 * Is a C parser worth it, or is it more idiomatic to use Clojure's reader to parse the C?
-* As Ed 1.7 is 2981 lines of C and 255 lines of header files, one approach could have been to just rewrite it all by hand in ~200 lies of CLojure, but I have a feeling that the standard could be compromised using this naive approach.
+* As Ed 1.7 is 2981 lines of C and 255 lines of header files, one approach could have been to just rewrite it all by hand in ~200 lines of Clojure, but I have a feeling that the standard could be compromised using this naive approach.
 * If this works for Ed, should it be done for Emacs?
 
 
