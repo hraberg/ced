@@ -6,8 +6,8 @@
             [clojure.walk :as w])
   (:import [java.io ByteArrayOutputStream PrintStream StringReader File]
            [clojure.lang Reflector]
-           [org.anarres.cpp Preprocessor PreprocessorListener
-            Feature Warning LexerSource StringLexerSource FileLexerSource Token]
+           [org.anarres.cpp Preprocessor PreprocessorListener CppReader
+            Feature Warning LexerSource StringLexerSource FileLexerSource]
            [xtc.lang C]
            [xtc.parser ParseError]
            [xtc.tree Node])
@@ -18,23 +18,23 @@
 
 (set! *warn-on-reflection* true)
 
+(defn ^LexerSource lexer-source [file]
+  (if (and (not (.exists (io/file file))) (string? file))
+    (StringLexerSource. file true)
+    (FileLexerSource. (io/file file))))
+
+;; We want to get rid of JCPP if possible and bake the preprocessor into the main parse.
+;; SuperC in xtc should be able to do this, but creates a huge, seemingly wrong, AST.
 (defn cpp [file]
-  (let [^LexerSource source (if (and (not (.exists (io/file file))) (string? file))
-                              (StringLexerSource. file true)
-                              (FileLexerSource. (io/file file)))
-        pp (doto (Preprocessor.)
+  (let [pp (doto (Preprocessor.)
              (.addFeature Feature/DIGRAPHS);
              (.addFeature Feature/TRIGRAPHS);
              (.addWarning Warning/IMPORT);
              (.setListener (PreprocessorListener.))
              (.addMacro "__JCPP__")
-             (.addInput source))]
-    (doto (.getSystemIncludePath pp)
-      (.add (str musl "/include")))
-    (loop [tok (.token pp) s (StringBuilder.)]
-      (if (and tok (not= Token/EOF (.getType tok)))
-        (recur (.token pp) (.append s (.getText tok)))
-        (str s)))))
+             (.setSystemIncludePath [(str musl "/include")])
+             (.addInput (lexer-source file)))]
+    (slurp (CppReader. pp))))
 
 (defn cpp-gcc [file]
   (:out (sh/sh "cpp" "-E" "-P" file)))
@@ -63,6 +63,8 @@
    (string? node) (read-string node)
    :else node))
 
+;; Using Rats! C parser, decoupled from the xtc source tree (see src/xtc).
+;; We could look into transforming the grammar, by hand or programatically, into some Clojure PEG parser.
 (defn parse-c [source file]
   (let [parser (C. (StringReader. source) file)
         tu (.pTranslationUnit parser 0)]
