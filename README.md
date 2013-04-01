@@ -24,8 +24,9 @@ Almost nothing yet. To build, run:
 * Building Clojure AST from the output.
 * K&R p. 10, "The first C program" works, by cheating and relying on Clojure's `printf`:
 
-    hello, world
-
+```
+hello, world
+```
 
 ### What's next?
 
