@@ -53,6 +53,8 @@ hello, world
 
 [Ed, man! !man ed](http://www.gnu.org/fun/jokes/ed-msg.html) Patrick J. LoPresti, 1991
 
+[Ed is the standard text editor: It is time for a line editor revival](http://ghettojedi.org/ed_is_the_standard_text/) Håkan Råberg, 2003
+
 [The C Programming Language, Second Edition](http://cm.bell-labs.com/cm/cs/cbook/) Brian W. Kernighan and Dennis M. Ritchie, 1988
 
 [C: A Reference Manual, Fifth Edition](http://careferencemanual.com/) Samuel P. Harbison III, Guy L. Steele Jr. 2002
