@@ -73,6 +73,8 @@ hello, world
 
 [musl](http://www.musl-libc.org/) Rich Felker, 2010-2013 - "musl is a new general-purpose implementation of the C library. It is lightweight, fast, simple, free, and aims to be correct in the sense of standards-conformance and safety."
 
+[CINT](http://root.cern.ch/drupal/content/cint) Masaharu Goto, 1995-2010 "CINT is an interpreter for C and C++ code."
+
 [Cibyl](http://code.google.com/p/cibyl/) Simon Kagstrom, 2007-2011 - "Cibyl is a programming environment and binary translator that allows compiled C programs to execute on J2ME-capable phones."
 
 [µClibc](http://www.uclibc.org/about.html) Erik Andersen, 1999-2012 - "A C library for embedded Linux"
