@@ -5,7 +5,7 @@
             [clojure.string :as s]
             [clojure.walk :as w])
   (:import [java.io ByteArrayOutputStream PrintStream StringReader File]
-           [clojure.lang Reflector]
+           [clojure.lang Reflector IDeref Ratio]
            [org.anarres.cpp Preprocessor PreprocessorListener CppReader
             Feature Warning LexerSource StringLexerSource FileLexerSource]
            [xtc.lang C]
@@ -93,7 +93,8 @@
   (println "don't know how to compile" _))
 
 (binding [*ns* (create-ns 'c)]
-  (clojure.core/refer-clojure))
+  (clojure.core/refer-clojure)
+  (intern *ns* 'main))
 
 (defn link [object]
   (binding [*ns* (the-ns 'c)]
@@ -101,15 +102,39 @@
 
 (defmethod compiler :translation-unit [[_ & args]]
   (let [prelude? (first args)
-        external-declaration* (drop 1 (butlast args))
+        external-declaration* (next (butlast args))
         annotations (last args)
         tu (cons (compiler prelude?) (map compiler external-declaration*))]
     (doall (cons 'do (remove nil? tu)))))
 
-;; #define - stubbed out for now.
+;; Enabling this forces to deal with stdio.h for real, including typedefs.
+;; This allows ftoc.c, K&R p. 12 to run.
+(def ^:dynamic *allow-declarations?* false)
+
 (defmethod compiler :declaration [[_ & [__extension__?
                                         declaration-specifiers
-                                        initialized-declarator-list?]]])
+                                        initialized-declarator-list?]]]
+  (when *allow-declarations?*
+    (let [specifiers (compiler declaration-specifiers)]
+      (map #(with-meta % specifiers)
+           (remove nil? (compiler initialized-declarator-list?))))))
+
+;; Highly speculative of how this would work.
+;; We need the type info on the Var/Atom if not the actual Java local.
+(defmethod compiler :int [_]
+  {:tag Integer/TYPE})
+
+;; Doesn't take most of this stuff into account
+(defmethod compiler :initialized-declarator [[_ & [attribute-specifier-list? declarator
+                                                   simple-assembly-expression? attribute-specifier-list?
+                                                   initializer?]]]
+  (compiler declarator))
+
+(defmethod compiler :initialized-declarator-list [[_ & declarators]]
+  (map compiler declarators))
+
+(defmethod compiler :declaration-specifiers [[_ & specifiers]]
+  (apply merge (map compiler specifiers)))
 
 (defmethod compiler :simple-declarator [[_ & [identifier]]]
   identifier)
@@ -117,24 +142,63 @@
 (defmethod compiler :primary-identifier [[_ & [identifier]]]
   identifier)
 
+(defmethod compiler :integer-constant [[_ & [integer-literal]]]
+  integer-literal)
+
 (defmethod compiler :string-constant [[_ & [string-literal]]]
   string-literal)
+
+;; Not a fan.
+(defn ? [x] (if (instance? IDeref x) @x x))
+
+(defn maybe-deref [x] (if (symbol? x) (list `? x) x))
+
+(def assignments {})
+
+(defmethod compiler :assignment-expression [[_ & [unary-expression assignment-operator assignment-expression]]]
+  (if (= '= assignment-operator)
+    (list 'reset! (compiler unary-expression) (maybe-deref (compiler assignment-expression)))
+    (list 'swap! (compiler unary-expression) (assignments assignment-operator) (maybe-deref (compiler assignment-expression)))))
+
+(defmethod compiler :relational-expression [[_ & [releational-expression relational-operator shift-expression]]]
+  (cons relational-operator (map maybe-deref [(compiler releational-expression) (compiler shift-expression)])))
+
+(defmethod compiler :additive-expression [[_ & [additive-expression additive-operator multiplicative-expression]]]
+  (cons additive-operator (map maybe-deref [(compiler additive-expression) (compiler multiplicative-expression)])))
+
+(defn maybe-ratio [x]
+  (if (instance? Ratio x)
+    (int x) ;; wrong wrong. assignment to a variable should do type coercion.
+    x))
+
+(defmethod compiler :multiplicative-expression [[_ & [multiplicative-expression multiplicative-operator cast-expression]]]
+  (let [code (cons multiplicative-operator (map maybe-deref [(compiler multiplicative-expression) (compiler cast-expression)]))]
+    (if (= '/ multiplicative-operator)
+      (list `maybe-ratio code)
+      code)))
 
 (defmethod compiler :expression-list [[_ & expressions]]
   (map compiler expressions))
 
 (defmethod compiler :function-call [[_ & [postfix-expression & [expression-list?]]]]
   (cons (compiler postfix-expression)
-        (compiler expression-list?)))
+        (map maybe-deref (compiler expression-list?))))
+
+(defmethod compiler :while-statement [[_ & [expression statement]]]
+  (list 'while (compiler expression)
+        (compiler statement)))
 
 (defmethod compiler :expression-statement [[_ & [expression]]]
   (compiler expression))
 
 (defmethod compiler :compound-statement [[_ & args]]
-  (let [local-label-declaration*-declaration-or-statement* (butlast args)
-        annotations (last args)]
-    (cons 'do
-          (map compiler local-label-declaration*-declaration-or-statement*))))
+  (let [[local-label-declaration*
+         declaration-or-statement*] (split-with (comp #{:declaration} first)
+                                                (butlast args))
+         annotations (last args)]
+    (concat ['let (vec (mapcat #(vector % (list 'atom nil))
+                               (mapcat compiler local-label-declaration*)))]
+            (map compiler declaration-or-statement*))))
 
 (defmethod compiler :function-declarator [[_ & [direct-declarator parameter-context]]]
   (list (with-meta (compiler direct-declarator) (merge (meta direct-declarator)
@@ -142,15 +206,24 @@
         (vec (compiler parameter-context))))
 
 (defmethod compiler :function-definition [[_ & [_ _ declarator _ compound-statement]]]
-  (cons 'defn (concat (compiler declarator) [(compiler compound-statement)])))
+  (binding [*allow-declarations?* true] ;; Temporary hack.
+    (cons 'defn (concat (compiler declarator) [(compiler compound-statement)]))))
+
+(defn compile-and-link [file]
+  (-> file
+      preprocess-and-parse-c
+      ast->clj
+      compiler
+      link))
+
+(defn compile-and-run [file]
+  (println "running" file)
+  (compile-and-link file)
+  (c/main))
 
 (defn -main [& args]
   ;; We'll get back to this, acts as a smoke test.
   (parse-ed)
   ;; We're cheating here, stubbing out the declarations and relying on the fact that printf is defined in Clojure.
-  (-> "resources/hello.c" ;; K&R, p. 10.
-      preprocess-and-parse-c
-      ast->clj
-      compiler
-      link)
-  (eval '(c/main)))
+  (compile-and-run "resources/hello.c") ;; K&R, p. 10.
+  (compile-and-run "resources/ftoc.c")) ;; K&R, p. 12.
