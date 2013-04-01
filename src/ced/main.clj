@@ -156,7 +156,7 @@
 
 (def assignments {'+= `+ '-= `- '*= `* (symbol nil "/=") `/ '%= `mod
                   '<<= `bit-shift-left '>>= `bit-shift-right
-                  '&= `bit-and (symbol nil "^=") `bit-xor '|= `bit-or})
+                  '&= `bit-and (symbol "^=") `bit-xor '|= `bit-or})
 
 (defmethod compiler :assignment-expression [[_ & [unary-expression assignment-operator assignment-expression]]]
   (let [variable (compiler unary-expression)
@@ -166,9 +166,19 @@
       `(swap! ~variable (comp ~coercion ~(assignments assignment-operator))
               ~(maybe-deref (compiler assignment-expression))))))
 
+;; This is premature, and '++ `inc '-- `dec '& `address needs special handling
+(def unary-operators {'! `not (symbol "~") `bit-not})
+
+(defn unary-operator [op x]
+  `(~(unary-operator op (symbol "clojure.core" (str op))) ~(maybe-deref (compiler x))))
+
+(def binary-operators {'== `= '!= `not= '% `mod '<< `bit-shift-left '>> `bit-shift-right
+                       '& `bit-and (symbol "^") `bit-xor '| `bit-or
+                       '&& `and '|| `or})
+
 (defn binary-operator [op x y]
-  `(~(symbol "clojure.core" (str op))
-    ~@(map maybe-deref [(compiler x) (compiler y)])))
+  `(~(binary-operators op (symbol "clojure.core" (str op)))
+    ~(maybe-deref (compiler x)) ~(maybe-deref (compiler y))))
 
 (defmethod compiler :relational-expression [[_ & [relational-expression relational-operator shift-expression]]]
   (binary-operator relational-operator relational-expression shift-expression))
