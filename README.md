@@ -52,6 +52,12 @@ Almost nothing yet. To build, run:
 
 [Ed, man! !man ed](http://www.gnu.org/fun/jokes/ed-msg.html) Patrick J. LoPresti, 1991
 
+[The C Programming Language, Second Edition](http://cm.bell-labs.com/cm/cs/cbook/) Brian W. Kernighan and Dennis M. Ritchie, 1988
+
+[C: A Reference Manual, Fifth Edition](http://careferencemanual.com/) Samuel P. Harbison III, Guy L. Steele Jr. 2002
+
+[Expert C Programming: Deep C Secrets](http://www.amazon.com/Expert-Programming-Peter-van-Linden/dp/0131774298) Peter van der Linden, 1994
+
 [xtc](http://cs.nyu.edu/rgrimm/xtc/) Paul Gazzillo and Robert Grimm, 2006-2012 -  "The xtc (eXTensible Compiler) project is exploring novel programming languages and tools to improve the expressiveness, safety, and efficiency of complex systems."
 
 [Rats!](http://cs.nyu.edu/rgrimm/xtc/rats-intro.html) Robert Grimm, 2004-2012
