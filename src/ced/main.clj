@@ -93,7 +93,7 @@
   (println "don't know how to compile" _))
 
 (binding [*ns* (create-ns 'c)]
-  (clojure.core/refer-clojure)
+  (clojure.core/refer-clojure :only '[printf])
   (intern *ns* 'main))
 
 (defn link [object]
@@ -105,7 +105,7 @@
         external-declaration* (next (butlast args))
         annotations (last args)
         tu (cons (compiler prelude?) (map compiler external-declaration*))]
-    (doall (cons 'do (remove nil? tu)))))
+    (doall (cons `do (remove nil? tu)))))
 
 ;; Enabling this forces to deal with stdio.h for real, including typedefs.
 ;; This allows ftoc.c, K&R p. 12 to run.
@@ -150,9 +150,9 @@
   string-literal)
 
 ;; Not a fan.
-(defn ? [x] (if (instance? IDeref x) @x x))
+(defn deref? [x] (if (instance? IDeref x) @x x))
 
-(defn maybe-deref [x] (if (symbol? x) (list `? x) x))
+(defn maybe-deref [x] (if (symbol? x) (list `deref? x) x))
 
 (def assignments {'+= `+ '-= `- '*= `* (symbol nil "/=") `/ '%= `mod
                   '<<= `bit-shift-left '>>= `bit-shift-right
@@ -162,22 +162,25 @@
   (let [variable (compiler unary-expression)
         coercion (:coercion (*locals* variable))]
     (if (= '= assignment-operator)
-      (list 'reset! variable
+      (list `reset! variable
             (list coercion (maybe-deref (compiler assignment-expression))))
-      (list 'swap! variable
+      (list `swap! variable
             (list `comp
                   coercion
                   (assignments assignment-operator))
             (maybe-deref (compiler assignment-expression))))))
 
-(defmethod compiler :relational-expression [[_ & [releational-expression relational-operator shift-expression]]]
-  (cons relational-operator (map maybe-deref [(compiler releational-expression) (compiler shift-expression)])))
+(defn binary-operator [op x y]
+  (cons (symbol "clojure.core" (str op)) (map maybe-deref [(compiler x) (compiler y)])))
+
+(defmethod compiler :relational-expression [[_ & [relational-expression relational-operator shift-expression]]]
+  (binary-operator relational-operator relational-expression shift-expression))
 
 (defmethod compiler :additive-expression [[_ & [additive-expression additive-operator multiplicative-expression]]]
-  (cons additive-operator (map maybe-deref [(compiler additive-expression) (compiler multiplicative-expression)])))
+  (binary-operator additive-operator additive-expression multiplicative-expression))
 
 (defmethod compiler :multiplicative-expression [[_ & [multiplicative-expression multiplicative-operator cast-expression]]]
-  (cons multiplicative-operator (map maybe-deref [(compiler multiplicative-expression) (compiler cast-expression)])))
+  (binary-operator multiplicative-operator multiplicative-expression cast-expression))
 
 (defmethod compiler :expression-list [[_ & expressions]]
   (map compiler expressions))
@@ -187,7 +190,7 @@
         (map maybe-deref (compiler expression-list?))))
 
 (defmethod compiler :while-statement [[_ & [expression statement]]]
-  (list 'while (compiler expression)
+  (list `while (compiler expression)
         (compiler statement)))
 
 (defmethod compiler :expression-statement [[_ & [expression]]]
@@ -200,7 +203,7 @@
          annotations (last args)
          local-labels (mapcat compiler local-label-declaration*)]
     (binding [*locals* (merge *locals* (zipmap local-labels (map meta local-labels)))]
-      (doall (concat ['let (vec (mapcat #(vector % (list 'atom nil)) local-labels))]
+      (doall (concat [`let (vec (mapcat #(vector % (list `atom nil)) local-labels))]
                      (map compiler declaration-or-statement*))))))
 
 (defmethod compiler :function-declarator [[_ & [direct-declarator parameter-context]]]
@@ -210,7 +213,7 @@
 
 (defmethod compiler :function-definition [[_ & [_ _ declarator _ compound-statement]]]
   (binding [*allow-declarations?* true] ;; Temporary hack.
-    (doall (cons 'defn (concat (compiler declarator) [(compiler compound-statement)])))))
+    (doall (cons `defn (concat (compiler declarator) [(compiler compound-statement)])))))
 
 (defn compile-and-link [file]
   (-> file
