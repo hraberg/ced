@@ -165,9 +165,9 @@
       (list 'reset! variable
             (list coercion (maybe-deref (compiler assignment-expression))))
       (list 'swap! variable
-            (comp
-             coercion
-             (assignments assignment-operator))
+            (list `comp
+                  coercion
+                  (assignments assignment-operator))
             (maybe-deref (compiler assignment-expression))))))
 
 (defmethod compiler :relational-expression [[_ & [releational-expression relational-operator shift-expression]]]
