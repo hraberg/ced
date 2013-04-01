@@ -2,7 +2,7 @@
 
 *CED is an effort to bring the power of Ed to Clojure.*
 
-***While primarily a project for April Fool's**, there are some fun parts here to keep investigating. Ed is actually a good initial target for a C to Clojure compiler as it has a test suite (as mentioned below) and while small, not totally trivial.*
+***While primarily a project for April Fool's,*** *there are some fun parts here to keep investigating. Ed is actually a good initial target for a C to Clojure compiler as it has a test suite (as mentioned below) and while small, not totally trivial.*
 
 
 Unlike bloated shit like Emacs, [Ed](http://www.gnu.org/software/ed/) stays out of the way and doesn't burden you with an extra Lisp implementation - Clojure can be first. After having worked on [Deuce](https://github.com/hraberg/deuce) for close to 2 months now, I realized it's time to go back to basics and start from `*scratch*`. As I said 2003: "[It is time for a line editor revival](http://ghettojedi.org/ed_is_the_standard_text/)".
