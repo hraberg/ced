@@ -18,14 +18,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defmacro with-java-out-str [& body]
-  `(let [o# System/out
-         bos# (ByteArrayOutputStream.)]
-     (try (System/setOut (PrintStream. bos#))
-          ~@body
-          (String. (.toByteArray bos#) "UTF-8")
-          (finally (System/setOut o#)))))
-
 (defn gcc-include-path []
   (let [lib-gcc (io/file "/usr/lib/gcc/")]
     (when (.exists lib-gcc)
@@ -52,16 +44,6 @@
 
 (defn cpp-gcc [file]
   (:out (sh/sh "cpp" "-E" "-P" file)))
-
-(defn print-ast [node]
-  (import xtc.tree.Printer)
-  (Reflector/invokeInstanceMethod
-   (eval `(Printer. *out*))
-   "format"
-   (object-array [(if (instance? Node node)
-                    node
-                    (:node (meta node)))]))
-  node)
 
 (defn decamel [s]
   (s/lower-case
