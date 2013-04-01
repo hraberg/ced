@@ -105,7 +105,7 @@
         external-declaration* (next (butlast args))
         annotations (last args)
         tu (cons (compiler prelude?) (map compiler external-declaration*))]
-    (doall (cons `do (remove nil? tu)))))
+    `(do ~@(remove nil? tu))))
 
 ;; Enabling this forces to deal with stdio.h for real, including typedefs.
 ;; This allows ftoc.c, K&R p. 12 to run.
@@ -162,16 +162,13 @@
   (let [variable (compiler unary-expression)
         coercion (:coercion (*locals* variable))]
     (if (= '= assignment-operator)
-      (list `reset! variable
-            (list coercion (maybe-deref (compiler assignment-expression))))
-      (list `swap! variable
-            (list `comp
-                  coercion
-                  (assignments assignment-operator))
-            (maybe-deref (compiler assignment-expression))))))
+      `(reset! ~variable (~coercion ~(maybe-deref (compiler assignment-expression))))
+      `(swap! ~variable (comp ~coercion ~(assignments assignment-operator))
+              ~(maybe-deref (compiler assignment-expression))))))
 
 (defn binary-operator [op x y]
-  (cons (symbol "clojure.core" (str op)) (map maybe-deref [(compiler x) (compiler y)])))
+  `(~(symbol "clojure.core" (str op))
+    ~@(map maybe-deref [(compiler x) (compiler y)])))
 
 (defmethod compiler :relational-expression [[_ & [relational-expression relational-operator shift-expression]]]
   (binary-operator relational-operator relational-expression shift-expression))
@@ -186,12 +183,11 @@
   (map compiler expressions))
 
 (defmethod compiler :function-call [[_ & [postfix-expression & [expression-list?]]]]
-  (cons (compiler postfix-expression)
-        (map maybe-deref (compiler expression-list?))))
+  `(~(compiler postfix-expression) ~@(map maybe-deref (compiler expression-list?))))
 
 (defmethod compiler :while-statement [[_ & [expression statement]]]
-  (list `while (compiler expression)
-        (compiler statement)))
+  `(while ~(compiler expression)
+     ~(compiler statement)))
 
 (defmethod compiler :expression-statement [[_ & [expression]]]
   (compiler expression))
@@ -203,17 +199,17 @@
          annotations (last args)
          local-labels (mapcat compiler local-label-declaration*)]
     (binding [*locals* (merge *locals* (zipmap local-labels (map meta local-labels)))]
-      (doall (concat [`let (vec (mapcat #(vector % (list `atom nil)) local-labels))]
-                     (map compiler declaration-or-statement*))))))
+      `(let ~(vec (mapcat #(vector % (list `atom nil)) local-labels))
+         ~@(doall (map compiler declaration-or-statement*))))))
 
 (defmethod compiler :function-declarator [[_ & [direct-declarator parameter-context]]]
-  (list (with-meta (compiler direct-declarator) (merge (meta direct-declarator)
-                                                        {:language :ansi-c}))
-        (vec (compiler parameter-context))))
+  `(~(with-meta (compiler direct-declarator)
+       (merge (meta direct-declarator)
+              {:language :ansi-c})) [~@(compiler parameter-context)]))
 
 (defmethod compiler :function-definition [[_ & [_ _ declarator _ compound-statement]]]
   (binding [*allow-declarations?* true] ;; Temporary hack.
-    (doall (cons `defn (concat (compiler declarator) [(compiler compound-statement)])))))
+    `(defn ~@(compiler declarator) ~(compiler compound-statement))))
 
 (defn compile-and-link [file]
   (-> file
