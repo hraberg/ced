@@ -22,6 +22,9 @@ Almost nothing yet. To build, run:
 
 * Using JCPP to pre-process the full Ed 1.7 source tree and feeding it to the Rats! C parser.
 * Building Clojure AST from the output.
+* K&R p. 10, "The first C program" works, by cheating and relying on Clojure's `printf`:
+
+    hello, world
 
 
 ### What's next?
