@@ -95,13 +95,16 @@
 (binding [*ns* (create-ns 'c)]
   (clojure.core/refer-clojure))
 
+(defn link [object]
+  (binding [*ns* (the-ns 'c)]
+    (eval object)))
+
 (defmethod compiler :translation-unit [[_ & args]]
   (let [prelude? (first args)
         external-declaration* (drop 1 (butlast args))
         annotations (last args)
         tu (cons (compiler prelude?) (map compiler external-declaration*))]
-    (binding [*ns* (the-ns 'c)]
-      (doall (map eval tu)))))
+    (doall (cons 'do (remove nil? tu)))))
 
 ;; #define - stubbed out for now.
 (defmethod compiler :declaration [[_ & [__extension__?
@@ -148,5 +151,6 @@
   (-> "resources/hello.c" ;; K&R, p. 10.
       preprocess-and-parse-c
       ast->clj
-      compiler)
+      compiler
+      link)
   (eval '(c/main)))
