@@ -110,6 +110,8 @@
 ;; Enabling this forces to deal with stdio.h for real, including typedefs.
 ;; This allows ftoc.c, K&R p. 12 to run.
 (def ^:dynamic *allow-declarations?* false)
+;; Contains the meta data with types etc. for current locals.
+(def ^:dynamic *locals* {})
 
 (defmethod compiler :declaration [[_ & [__extension__?
                                         declaration-specifiers
@@ -119,10 +121,9 @@
       (map #(with-meta % specifiers)
            (remove nil? (compiler initialized-declarator-list?))))))
 
-;; Highly speculative of how this would work.
-;; We need the type info on the Var/Atom if not the actual Java local.
 (defmethod compiler :int [_]
-  {:tag Integer/TYPE})
+  {:tag Integer/TYPE
+   :coercion `int})
 
 ;; Doesn't take most of this stuff into account
 (defmethod compiler :initialized-declarator [[_ & [attribute-specifier-list? declarator
@@ -153,12 +154,21 @@
 
 (defn maybe-deref [x] (if (symbol? x) (list `? x) x))
 
-(def assignments {})
+(def assignments {'+= `+ '-= `- '*= `* (symbol nil "/=") `/ '%= `mod
+                  '<<= `bit-shift-left '>>= `bit-shift-right
+                  '&= `bit-and (symbol nil "^=") `bit-xor '|= `bit-or})
 
 (defmethod compiler :assignment-expression [[_ & [unary-expression assignment-operator assignment-expression]]]
-  (if (= '= assignment-operator)
-    (list 'reset! (compiler unary-expression) (maybe-deref (compiler assignment-expression)))
-    (list 'swap! (compiler unary-expression) (assignments assignment-operator) (maybe-deref (compiler assignment-expression)))))
+  (let [variable (compiler unary-expression)
+        coercion (:coercion (*locals* variable))]
+    (if (= '= assignment-operator)
+      (list 'reset! variable
+            (list coercion (maybe-deref (compiler assignment-expression))))
+      (list 'swap! variable
+            (comp
+             coercion
+             (assignments assignment-operator))
+            (maybe-deref (compiler assignment-expression))))))
 
 (defmethod compiler :relational-expression [[_ & [releational-expression relational-operator shift-expression]]]
   (cons relational-operator (map maybe-deref [(compiler releational-expression) (compiler shift-expression)])))
@@ -166,16 +176,8 @@
 (defmethod compiler :additive-expression [[_ & [additive-expression additive-operator multiplicative-expression]]]
   (cons additive-operator (map maybe-deref [(compiler additive-expression) (compiler multiplicative-expression)])))
 
-(defn maybe-ratio [x]
-  (if (instance? Ratio x)
-    (int x) ;; wrong wrong. assignment to a variable should do type coercion.
-    x))
-
 (defmethod compiler :multiplicative-expression [[_ & [multiplicative-expression multiplicative-operator cast-expression]]]
-  (let [code (cons multiplicative-operator (map maybe-deref [(compiler multiplicative-expression) (compiler cast-expression)]))]
-    (if (= '/ multiplicative-operator)
-      (list `maybe-ratio code)
-      code)))
+  (cons multiplicative-operator (map maybe-deref [(compiler multiplicative-expression) (compiler cast-expression)])))
 
 (defmethod compiler :expression-list [[_ & expressions]]
   (map compiler expressions))
@@ -195,10 +197,11 @@
   (let [[local-label-declaration*
          declaration-or-statement*] (split-with (comp #{:declaration} first)
                                                 (butlast args))
-         annotations (last args)]
-    (concat ['let (vec (mapcat #(vector % (list 'atom nil))
-                               (mapcat compiler local-label-declaration*)))]
-            (map compiler declaration-or-statement*))))
+         annotations (last args)
+         local-labels (mapcat compiler local-label-declaration*)]
+    (binding [*locals* (merge *locals* (zipmap local-labels (map meta local-labels)))]
+      (doall (concat ['let (vec (mapcat #(vector % (list 'atom nil)) local-labels))]
+                     (map compiler declaration-or-statement*))))))
 
 (defmethod compiler :function-declarator [[_ & [direct-declarator parameter-context]]]
   (list (with-meta (compiler direct-declarator) (merge (meta direct-declarator)
@@ -207,7 +210,7 @@
 
 (defmethod compiler :function-definition [[_ & [_ _ declarator _ compound-statement]]]
   (binding [*allow-declarations?* true] ;; Temporary hack.
-    (cons 'defn (concat (compiler declarator) [(compiler compound-statement)]))))
+    (doall (cons 'defn (concat (compiler declarator) [(compiler compound-statement)])))))
 
 (defn compile-and-link [file]
   (-> file
