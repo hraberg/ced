@@ -7,7 +7,8 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [xtc/rats-runtime "2.3.1"]
                  [com.nativelibs4java/anarres-jnaerator "1.2.8"
-                  :exclusions [commons-collections/commons-collections]]]
+                  :exclusions [commons-collections/commons-collections
+                               gnu.getopt/java-getopt]]]
   :profiles {:dev {:dependencies [[xtc/rats "2.3.1"]]}}
   :plugins [[lein-swank "1.4.5"]]
   :resource-paths ["ed-1.7" "resources"]

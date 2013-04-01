@@ -18,12 +18,6 @@
 
 (set! *warn-on-reflection* true)
 
-(defn gcc-include-path []
-  (let [lib-gcc (io/file "/usr/lib/gcc/")]
-    (when (.exists lib-gcc)
-      (some (fn [^File f] (when (= "include" (.getName f)) (.getAbsolutePath f)))
-            (file-seq lib-gcc)))))
-
 (defn cpp [file]
   (let [^LexerSource source (if (and (not (.exists (io/file file))) (string? file))
                               (StringLexerSource. file true)
