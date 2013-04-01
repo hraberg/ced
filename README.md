@@ -3,7 +3,7 @@
 *CED is an effort to bring the power of Ed to Clojure.*
 
 
-Unlike bloated shit like Emacs, [Ed](http://www.gnu.org/software/ed/) stays out of the way and doesn't burden you with an extra Lisp implementation - Clojure can be first. After having worked on [Deuce](https://github.com/hraberg/deuce) for close to 2 months now, I realized it's time to go back to basics and start from `*scratch*`. As I said 2003, "[It is time for a line editor revival](http://ghettojedi.org/ed_is_the_standard_text/)".
+Unlike bloated shit like Emacs, [Ed](http://www.gnu.org/software/ed/) stays out of the way and doesn't burden you with an extra Lisp implementation - Clojure can be first. After having worked on [Deuce](https://github.com/hraberg/deuce) for close to 2 months now, I realized it's time to go back to basics and start from `*scratch*`. As I said 2003: "[It is time for a line editor revival](http://ghettojedi.org/ed_is_the_standard_text/)".
 
 Ed also has a serious test suite, which is something that cannot be said for Emacs. To lose no time to a future proof-ed Ed, I've decided that the easiest way to progress is to write a C to Clojure compiler - similar to Zeta-C or Vacietis for Common Lisp, together with a thin standard C library implementation on top of the JVM. The exact details are still to be hashed out. Here projects like Cibyl can serve as inspiration, which is a MIPS to JVM compiler (primarily for J2ME use).
 
