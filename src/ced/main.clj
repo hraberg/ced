@@ -13,8 +13,6 @@
            [xtc.tree Node])
   (:gen-class))
 
-(def musl "musl-0.9.9")
-
 (set! *warn-on-reflection* true)
 
 (defn ^LexerSource lexer-source [file]
@@ -31,7 +29,7 @@
              (.addWarning Warning/IMPORT);
              (.setListener (PreprocessorListener.))
              (.addMacro "__JCPP__")
-             (.setSystemIncludePath [(str musl "/include")])
+             (.setSystemIncludePath ["resources/include"])
              (.addInput (lexer-source file)))]
     (slurp (CppReader. pp))))
 
