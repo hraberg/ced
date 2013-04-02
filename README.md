@@ -42,7 +42,7 @@ hello, world
 
 [CINT](http://root.cern.ch/drupal/content/cint) Masaharu Goto, 1995-2010 "CINT is an interpreter for C and C++ code."
 
-[Cibyl](http://code.google.com/p/cibyl/) Simon Kagstrom, 2007-2011 - "Cibyl is a programming environment and binary translator that allows compiled C programs to execute on J2ME-capable phones."
+[Cibyl](http://code.google.com/p/cibyl/) Simon Kågström, 2007-2011 - "Cibyl is a programming environment and binary translator that allows compiled C programs to execute on J2ME-capable phones."
 
 [NestedVM](http://nestedvm.ibex.org/) Brian Alliet and Adam Megacz, 2006-2009 - "NestedVM provides binary translation for Java Bytecode. This is done by having GCC compile to a MIPS binary which is then translated to a Java class file."
 
