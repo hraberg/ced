@@ -22,6 +22,7 @@
 
 ;; We want to get rid of JCPP if possible and bake the preprocessor into the main parse.
 ;; SuperC in xtc should be able to do this, but creates a huge, seemingly wrong, AST.
+;; JCPP has a concept of virtual file systems, so we should be able to write a classloader based one.
 (defn cpp [file]
   (let [pp (doto (Preprocessor.)
              (.addFeature Feature/DIGRAPHS);
@@ -35,6 +36,20 @@
 
 (defn cpp-gcc [file]
   (:out (sh/sh "cpp" "-E" "-P" file)))
+
+(defn man-short [fn]
+  (second (re-find #"- (.+)\n" (:out (sh/sh "man" "-f" (str fn))))))
+
+(defn man [fn]
+  ;; 3   Library calls (functions within program libraries)
+  (:out (sh/sh "man" "-P" "cat" "3" (str fn))))
+
+(defn head [s & [n]]
+  (s/join "\n" (take (or n 1) (s/split s #"\n"))))
+
+(defn tail [s & [n]]
+  (let [lines (s/split s #"\n")]
+    (s/join "\n" (drop (- (count lines) (or n 1)) lines))))
 
 (defn decamel [s]
   (s/lower-case
@@ -69,6 +84,7 @@
 
 ;; Using Rats! C parser, decoupled from the xtc source tree (see src/xtc).
 ;; We could look into transforming the grammar, by hand or programatically, into some Clojure PEG parser.
+;; Once the compiler itself works, we can use its structure to implement a pure Clojure parser.
 (defn parse-c [source file]
   (let [parser (C. (StringReader. source) file)
         tu (.pTranslationUnit parser 0)]
@@ -89,11 +105,23 @@
 
 (defmethod compiler :empty-statement [[_ & args]])
 
+(def bytes-class (type (byte-array 0)))
+
+(defn char*-to-string [cs]
+  (if (instance? bytes-class cs)
+    (String. ^bytes cs)
+    cs))
+
 ;; Fix all this crap, but just so we can have a stub for stdio a bit longer while dealing with core C.
+;; I have yet to decide if we want to implement stdio as a namespace in Clojure, or compile stdio from musl's C.
+;; Some low-level functions would still obviously have to be provided by Clojure.
 (binding [*ns* (create-ns 'c)]
-  (intern *ns* 'printf  (fn [fmt & args] (apply printf (s/replace fmt #"%ld" "%d") args)))
-  (intern *ns* 'putchar  (fn [c] (print (char c))))
-  (intern *ns* 'getchar (fn [] (.read ^Reader *in*)))
+  (intern *ns* 'printf  (fn [^bytes fmt & args]
+                          (count (doto (apply format (s/replace (char*-to-string fmt) #"%ld" "%d")
+                                              (map char*-to-string args))
+                                   print))))
+  (intern *ns* 'putchar (fn ^long [^long c] (doto c (-> char print))))
+  (intern *ns* 'getchar (fn ^long [] (.read ^Reader *in*)))
   (intern *ns* 'main))
 
 (defn link [object]
@@ -121,6 +149,8 @@
       (map #(with-meta % specifiers)
            (remove nil? (compiler initialized-declarator-list?))))))
 
+;; See http://jna.java.net/javadoc/overview-summary.html#marshalling for ideas how to map things.
+;; http://nativelibs4java.sourceforge.net/bridj/api/development/org/bridj/Pointer.html
 (defmethod compiler :int [_]
   {:tag Integer/TYPE
    :coercion `int})
@@ -137,10 +167,11 @@
   {:tag Double/TYPE
    :coercion `double})
 
-;; int for now, as otherwise we need to deal with equality.
+;; Let's try byte, a char can be both signed/unsigned by default, "For gcc, the default is signed".
+;; Also: Byte/toUnsignedInt
 (defmethod compiler :char [_]
-  {:tag Integer/TYPE
-   :coercion `int})
+  {:tag Byte/TYPE
+   :coercion `byte})
 
 ;; Doesn't take most of this stuff into account
 (defmethod compiler :initialized-declarator [[_ & [attribute-specifier-list? declarator
@@ -173,7 +204,7 @@
   float-literal)
 
 (defmethod compiler :string-constant [[_ & [string-literal]]]
-  string-literal)
+  `(.getBytes ~string-literal))
 
 (defmethod compiler :character-constant [[_ & [char-literal]]]
   (int char-literal))
