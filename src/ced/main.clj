@@ -13,7 +13,6 @@
            [xtc.tree Node])
   (:gen-class))
 
-(def ed "ed-1.7")
 (def musl "musl-0.9.9")
 
 (set! *warn-on-reflection* true)
@@ -82,15 +81,6 @@
 (defn preprocess-and-parse-c [file]
   (let [file (io/file file)]
     (parse-c (cpp file) (.getName file))))
-
-(defn parse-ed []
-  (time
-   (doseq [^File f (filter #(re-find #"\.c$" (str %)) (.listFiles (io/file ed)))
-           :let [ns (symbol (str "ced.ed." (s/replace (.getName f) #"\.c$" "")))]]
-     (create-ns ns)
-     (println "preprocessing and parsing" (str f))
-     (time (let [pp (cpp (.getAbsolutePath f))]
-             (intern ns 'c-source (ast->clj (parse-c pp (.getName f)))))))))
 
 (defmulti compiler (fn [[type & args]] type))
 
@@ -257,22 +247,22 @@
   `(~(compiler postfix-expression) ~@(map maybe-deref (compiler expression-list?))))
 
 (defmethod compiler :if-statement [[_ & [expression statement]]]
-  `(when ~(compiler expression)
+  `(when ~(maybe-deref (compiler expression))
      ~(compiler statement)))
 
 (defmethod compiler :if-else-statement [[_ & [expression statement else-statement]]]
-  `(if ~(compiler expression)
+  `(if ~(maybe-deref (compiler expression))
      ~(compiler statement)
      ~(compiler else-statement)))
 
 (defmethod compiler :while-statement [[_ & [expression statement]]]
-  `(while ~(compiler expression)
+  `(while ~(maybe-deref (compiler expression))
      ~(compiler statement)))
 
 (defmethod compiler :for-statement [[_ & [initial-clause expression expression? statement]]]
   `(do
      ~(compiler initial-clause)
-     (while ~(compiler expression)
+     (while ~(maybe-deref (compiler expression))
        ~(compiler statement)
        ~(compiler expression?))))
 
@@ -311,9 +301,6 @@
   (c/main))
 
 (defn -main [& args]
-  ;; We'll get back to this, acts as a smoke test.
-  (parse-ed)
-
   ;; K&R The C Programming Language examples.
   ;; We're cheating here, stubbing out the declarations and relying on the fact that printf is defined in Clojure.
   (doseq [f (filter #(re-find #"\.c$" (str %)) (.listFiles (io/file "resources/k&r")))]

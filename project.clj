@@ -10,7 +10,6 @@
                                gnu.getopt/java-getopt]]]
   :profiles {:dev {:dependencies [[xtc/rats "2.3.1"]]}}
   :plugins [[lein-swank "1.4.5"]]
-  :resource-paths ["ed-1.7" "resources"]
-  :jar-exclusions [#".o" #"doc/.*" #"ChangeLog.*" #"Makefile.*" #"\p{Upper}+"]
+  :resource-paths ["resources"]
   :java-source-paths ["src"]
   :main ced.main)

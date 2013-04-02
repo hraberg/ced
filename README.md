@@ -9,14 +9,13 @@ So, instead of porting Ed, I will slowly implement [The C Programming Language, 
 
 Almost nothing yet. To build, run:
 
-    ./build # Fetches ed-1.7.tar.gz (still), musl-0.9.9.tgz, creates the C parser and bundles it all into an uberjar.
+    ./build # Fetches musl-0.9.9.tgz, creates the C parser and bundles it all into an uberjar.
 
-* Using JCPP, using header files from [musl](http://www.musl-libc.org/) to pre-process the Ed 1.7 source tree and feeding it to the Rats! C parser.
+* Using JCPP, using header files from [musl](http://www.musl-libc.org/) to pre-process C and feeding it to the Rats! C parser.
 * Building Clojure AST from the output.
-* K&R, "Chapter 1 - A Tutorial Introduction"  works up to part "1.6, Arrays", by cheating and relying on Clojure's `printf`:
+* K&R, "Chapter 1 - A Tutorial Introduction"  works up to part "1.6, Arrays", by "cheating" and relying on Clojure implementations of `printf` `getchar` and `putchar` :
 
 ```
-[ .. output of parsing ed ..]
 hello, world
 [ .. lots of output from K&R Chapter 1 .. ]
 
