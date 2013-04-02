@@ -1,9 +1,8 @@
 (defproject ced "0.1.0-SNAPSHOT"
-  :description "CED - Ced is the standard Clojure EDitor."
-  :url "http://www.gnu.org/software/ed/"
-  :license {:name "GNU General Public License Version 3"
-            :url "http://www.gnu.org/licenses/"
-            :distribution :repo}
+  :description "CED - C, Clojure Editon."
+  :url "https://github.com/hraberg/ced"
+  :license {:name "Eclipse Public License"
+            :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [xtc/rats-runtime "2.3.1"]
                  [com.nativelibs4java/anarres-jnaerator "1.2.8"
