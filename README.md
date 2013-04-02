@@ -44,6 +44,10 @@ hello, world
 
 [Cibyl](http://code.google.com/p/cibyl/) Simon Kagstrom, 2007-2011 - "Cibyl is a programming environment and binary translator that allows compiled C programs to execute on J2ME-capable phones."
 
+[NestedVM](http://nestedvm.ibex.org/) Brian Alliet and Adam Megacz, 2006-2009 - "NestedVM provides binary translation for Java Bytecode. This is done by having GCC compile to a MIPS binary which is then translated to a Java class file."
+
+[LLJVM](http://da.vidr.cc/projects/lljvm/) David A Roberts, 2010 - "LLJVM provides a set of tools and libraries for running comparatively low level languages (such as C) on the JVM."
+
 [µClibc](http://www.uclibc.org/about.html) Erik Andersen, 1999-2012 - "A C library for embedded Linux"
 
 

@@ -116,8 +116,9 @@
 ;; I have yet to decide if we want to implement stdio as a namespace in Clojure, or compile stdio from musl's C.
 ;; Some low-level functions would still obviously have to be provided by Clojure.
 (binding [*ns* (create-ns 'c)]
-  (intern *ns* 'printf  (fn [^bytes fmt & args]
-                          (count (doto (apply format (s/replace (char*-to-string fmt) #"%ld" "%d")
+  (intern *ns* 'printf  (fn [^bytes format & args]
+                          (count (doto (apply clojure.core/format
+                                              (s/replace (char*-to-string format) #"%ld" "%d")
                                               (map char*-to-string args))
                                    print))))
   (intern *ns* 'putchar (fn ^long [^long c] (doto c (-> char print))))
