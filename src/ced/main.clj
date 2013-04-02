@@ -169,6 +169,12 @@
 (defmethod compiler :simple-declarator [[_ & [identifier]]]
   identifier)
 
+(defmethod compiler :array-qualifier-list [[_ & qualifiers]]
+  (map compiler qualifiers))
+
+(defmethod compiler :array-declarator [[_ & [direct-declarator array-qualifier-list array-size-expression?]]]
+  (println (compiler direct-declarator) (compiler array-qualifier-list) (compiler array-size-expression?)))
+
 (defmethod compiler :primary-identifier [[_ & [identifier]]]
   identifier)
 
@@ -206,6 +212,9 @@
 
 (defn unary-operator [op x]
   `(~(unary-operator op (symbol "clojure.core" (str op))) ~(maybe-deref (compiler x))))
+
+(defmethod compiler :subscript-expression [[_ & [postfix-expression expression]]]
+  `(nth ~(compiler postfix-expression) ~(maybe-deref (compiler expression))))
 
 (defmethod compiler :unary-minus-expression [[_ & [cast-expression]]]
   `(- ~(maybe-deref (compiler cast-expression))))

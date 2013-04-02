@@ -1,61 +1,27 @@
-# CED - Ced is the Standard Clojure EDitor
+# CED - C, Clojure Edition
 
-*CED is an effort to bring the power of Ed to Clojure.*
+This project started as an [April Fool's joke](doc/README-April-1st.md), but was actually driven below by the sheer coolness of projects like the [Vacietis - C to Common Lisp compiler](https://github.com/vsedach/Vacietis). Most of the references still made sense, but the discussion about them was whimsical and didn't on purpose.
 
-***While primarily a project for April Fool's,*** *there are some fun parts here to keep investigating. Ed is actually a good initial target for a C to Clojure compiler as it has a test suite (as mentioned below) and while small, not totally trivial.*
-
-
-Unlike bloated shit like Emacs, [Ed](http://www.gnu.org/software/ed/) stays out of the way and doesn't burden you with an extra Lisp implementation - Clojure can be first. After having worked on [Deuce](https://github.com/hraberg/deuce) for close to 2 months now, I realized it's time to go back to basics and start from `*scratch*`. As I said 2003: "[It is time for a line editor revival](http://ghettojedi.org/ed_is_the_standard_text/)".
-
-Ed also has a serious test suite, which is something that cannot be said for Emacs. To lose no time to a future proof-ed Ed, I've decided that the easiest way to progress is to write a C to Clojure compiler - similar to Zeta-C or Vacietis for Common Lisp, together with a thin standard C library implementation on top of the JVM. The exact details are still to be hashed out. Here projects like Cibyl can serve as inspiration, which is a MIPS to JVM compiler (primarily for J2ME use).
-
-This straight forward approach will allow for the unaltered *standard* Ed C source to be run on top of the JVM.
-
-Extending Ed, the REPL of champions, with a powerful Lisp such as Clojure will open up unheard of possibilities in the near and not so near future - and potentially even in the past - but let's not get ahead of ourselves!
-
-I aim to hack on this for the next 24 hours to see where it ends up, before returning to my regular scheduled Emacs development.
+So, instead of porting Ed, I will slowly implement [The C Programming Language, Second Edition](http://cm.bell-labs.com/cm/cs/cbook/) via a C to Clojure compiler. You can see the start of "Chapter 1 - A Tutorial Introduction" [here](). This is a side project, so don't expect to much progress.
 
 
 ### What Works?
 
 Almost nothing yet. To build, run:
 
-    ./build # Fetches ed-1.7.tar.gz, musl-0.9.9.tgz, creates the C parser and bundles it all into an uberjar.
+    ./build # Fetches ed-1.7.tar.gz (still), musl-0.9.9.tgz, creates the C parser and bundles it all into an uberjar.
 
-* Using JCPP to pre-process the full Ed 1.7 source tree and feeding it to the Rats! C parser.
+* Using JCPP, using header files from [musl](http://www.musl-libc.org/) to pre-process the Ed 1.7 source tree and feeding it to the Rats! C parser.
 * Building Clojure AST from the output.
-* K&R p. 10, "The first C program" works, by cheating and relying on Clojure's `printf`:
+* K&R, "Chapter 1 - A Tutorial Introduction"  works up to parts "1.5, Arrays", by cheating and relying on Clojure's `printf`:
 
 ```
+[ .. output of parsing ed ..]
 hello, world
+[ .. lots of output from K&R Chapter 1 .. ]
+
 ```
-
-### What's next?
-
-* Walk the AST. Sprinkle a few `defmacro`s to easily compile C to Clojure.
- * Investigate an `asm.clj` like approach?
-* A big decision is to figure out how pointers will work.
-* Decide how to deal with `libc` - there are a few approaches:
- * Provide exact handwritten Clojure implementations for the parts that matter. This is how Vacieties and Zeta-C works.
- * Try to base the implementation on something like musl or µClibc and move down the stack - but get a lot back for free.
- * Use, or take hints from, an existing `libc` implementation for the JVM, like Cybil's.
- * Use JNA, would simplify certain things, but complicate others.
-* There's luckily no need for GUI tool-kits: `*out*` and `*in*` should suffice.
-* Running the *extensive* Ed test suite, which is nicely all in/out based (see above), so slotting in a script instead of `ed` starting our new Clojure port should be possible, and enable official blessing of adherence to the standard.
-
-
-### Questions
-
-* Is a C parser worth it, or is it more idiomatic to use Clojure's reader to parse the C?
-* As Ed 1.7 is 2981 lines of C and 255 lines of header files, one approach could have been to just rewrite it all by hand in ~200 lines of Clojure, but I have a feeling that the standard could be compromised using this naive approach.
-* If this works for Ed, should it be done for Emacs?
-
-
 ## References
-
-[Ed, man! !man ed](http://www.gnu.org/fun/jokes/ed-msg.html) Patrick J. LoPresti, 1991
-
-[Ed is the standard text editor: It is time for a line editor revival](http://ghettojedi.org/ed_is_the_standard_text/) Håkan Råberg, 2003
 
 [The C Programming Language, Second Edition](http://cm.bell-labs.com/cm/cs/cbook/) Brian W. Kernighan and Dennis M. Ritchie, 1988
 
@@ -84,6 +50,6 @@ hello, world
 
 ## License
 
-[GNU General Public License Version 3](http://www.gnu.org/licenses/gpl-3.0.html)
+Copyright © 2013 Håkan Råberg
 
-[GNU Ed](http://www.gnu.org/software/ed/) is Copyright (C) 1993-1994, 2006-2012 [Free Software Foundation, Inc](http://www.fsf.org/).
+Distributed under the Eclipse Public License, the same as Clojure.
