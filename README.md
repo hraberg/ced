@@ -2,7 +2,7 @@
 
 This project started as an [April Fool's joke](doc/README-April-1st.md), but was actually driven by the sheer coolness of projects like the [Vacietis - C to Common Lisp compiler](https://github.com/vsedach/Vacietis). Most of the references still made sense, but the discussion about them was whimsical on purpose.
 
-So, instead of porting Ed, I will slowly implement [The C Programming Language, Second Edition](http://cm.bell-labs.com/cm/cs/cbook/) via a C to Clojure compiler. You can see the start of "Chapter 1 - A Tutorial Introduction" [here](). This is a side project, so don't expect to much progress.
+So, instead of porting Ed, I will slowly implement [The C Programming Language, Second Edition](http://cm.bell-labs.com/cm/cs/cbook/) via a C to Clojure compiler. You can see the start of "Chapter 1 - A Tutorial Introduction" [here](https://github.com/hraberg/ced/tree/master/resources/k%26r). This is a side project, so don't expect to much progress.
 
 
 ### What Works?
