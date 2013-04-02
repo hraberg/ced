@@ -5,6 +5,7 @@
             [clojure.string :as s]
             [clojure.walk :as w])
   (:import [java.io ByteArrayOutputStream PrintStream StringReader File Reader]
+           [java.util Arrays]
            [clojure.lang Reflector IDeref Ratio]
            [org.anarres.cpp Preprocessor PreprocessorListener CppReader
             Feature Warning LexerSource StringLexerSource FileLexerSource]
@@ -109,7 +110,7 @@
 
 (defn char*-to-string [cs]
   (if (instance? bytes-class cs)
-    (String. ^bytes cs)
+    (String. ^bytes cs 0 (dec (count cs)))
     cs))
 
 ;; Fix all this crap, but just so we can have a stub for stdio a bit longer while dealing with core C.
@@ -204,8 +205,12 @@
 (defmethod compiler :floating-constant [[_ & [float-literal]]]
   float-literal)
 
+(defn string-to-char* [^String s]
+  (let [bytes (.getBytes s)]
+    (Arrays/copyOf bytes (inc (count bytes)))))
+
 (defmethod compiler :string-constant [[_ & [string-literal]]]
-  `(.getBytes ~string-literal))
+  `(string-to-char* ~string-literal))
 
 (defmethod compiler :character-constant [[_ & [char-literal]]]
   (int char-literal))
