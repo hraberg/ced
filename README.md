@@ -11,7 +11,7 @@ Almost nothing yet. To build, run:
 
     ./build # Fetches musl-0.9.9.tgz, creates the C parser and bundles it all into an uberjar.
 
-* Using JCPP, using header files from [musl](http://www.musl-libc.org/) to pre-process C and feeding it to the Rats! C parser.
+* Using [JCPP](http://www.anarres.org/projects/jcpp/) with header files from [musl](http://www.musl-libc.org/) to pre-process C and feeding it to the [Rats!](http://cs.nyu.edu/rgrimm/xtc/rats-intro.html) C parser.
 * Building Clojure AST from the output.
 * K&R, "Chapter 1 - A Tutorial Introduction"  works up to part "1.6, Arrays", by "cheating" and relying on Clojure implementations of `printf` `getchar` and `putchar` :
 
