@@ -125,6 +125,10 @@
   {:tag Integer/TYPE
    :coercion `int})
 
+(defmethod compiler :float [_]
+  {:tag Float/TYPE
+   :coercion `float})
+
 ;; Doesn't take most of this stuff into account
 (defmethod compiler :initialized-declarator [[_ & [attribute-specifier-list? declarator
                                                    simple-assembly-expression? attribute-specifier-list?
@@ -145,6 +149,9 @@
 
 (defmethod compiler :integer-constant [[_ & [integer-literal]]]
   integer-literal)
+
+(defmethod compiler :floating-constant [[_ & [float-literal]]]
+  float-literal)
 
 (defmethod compiler :string-constant [[_ & [string-literal]]]
   string-literal)
@@ -199,6 +206,13 @@
   `(while ~(compiler expression)
      ~(compiler statement)))
 
+(defmethod compiler :for-statement [[_ & [initial-clause expression expression? statement]]]
+  `(do
+     ~(compiler initial-clause)
+     (while ~(compiler expression)
+       ~(compiler statement)
+       ~(compiler expression?))))
+
 (defmethod compiler :expression-statement [[_ & [expression]]]
   (compiler expression))
 
@@ -236,6 +250,8 @@
 (defn -main [& args]
   ;; We'll get back to this, acts as a smoke test.
   (parse-ed)
+
+  ;; K&R The C Programming Language examples.
   ;; We're cheating here, stubbing out the declarations and relying on the fact that printf is defined in Clojure.
-  (compile-and-run "resources/hello.c") ;; K&R, p. 10.
-  (compile-and-run "resources/ftoc.c")) ;; K&R, p. 12.
+  (doseq [f (.listFiles (io/file "resources/k&r"))]
+    (compile-and-run f)))
