@@ -64,10 +64,12 @@
                     [f (Reflector/getInstanceField location (name f))])
                   [:line :column :file]))))
 
+(defn resolve-hex-espaces [s]
+  (s/replace s #"\\x(\p{XDigit}+)" (fn [[_ hex]] (str (char (Integer/parseInt hex 16))))))
+
 (defn parse-char [s]
   (when-let [[_ c] (re-find #"(?s)^'(.*)'$" s)]
-    (first (reduce (fn [s [m r]] (s/replace s m r)) c
-                   {#"\\n" "\n" "\\r" "\r" "\\t" "\t" "\\b" "\b"}))))
+    (first (read-string (resolve-hex-espaces (str \" c \"))))))
 
 (defn ast->clj [node]
   (cond
@@ -80,7 +82,9 @@
                             :node node})
    (string? node) (if-let [c (parse-char node)]
                     c
-                    (read-string node))
+                    (read-string (if (= \" (first node))
+                                   (resolve-hex-espaces node)
+                                   node)))
    :else node))
 
 ;; Using Rats! C parser, decoupled from the xtc source tree (see src/xtc).
