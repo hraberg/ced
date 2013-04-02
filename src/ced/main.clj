@@ -4,7 +4,7 @@
             [clojure.java.shell :as sh]
             [clojure.string :as s]
             [clojure.walk :as w])
-  (:import [java.io ByteArrayOutputStream PrintStream StringReader File]
+  (:import [java.io ByteArrayOutputStream PrintStream StringReader File Reader]
            [clojure.lang Reflector IDeref Ratio]
            [org.anarres.cpp Preprocessor PreprocessorListener CppReader
             Feature Warning LexerSource StringLexerSource FileLexerSource]
@@ -51,6 +51,11 @@
                     [f (Reflector/getInstanceField location (name f))])
                   [:line :column :file]))))
 
+(defn parse-char [s]
+  (when-let [[_ c] (re-find #"(?s)^'(.*)'$" s)]
+    (first (reduce (fn [s [m r]] (s/replace s m r)) c
+                   {#"\\n" "\n" "\\r" "\r" "\\t" "\t" "\\b" "\b"}))))
+
 (defn ast->clj [node]
   (cond
    (instance? Node node) (with-meta
@@ -60,7 +65,9 @@
                             (map ast->clj (seq node)))
                            {:location  (location node)
                             :node node})
-   (string? node) (read-string node)
+   (string? node) (if-let [c (parse-char node)]
+                    c
+                    (read-string node))
    :else node))
 
 ;; Using Rats! C parser, decoupled from the xtc source tree (see src/xtc).
@@ -78,7 +85,7 @@
 
 (defn parse-ed []
   (time
-   (doseq [^File f (filter (fn [^File f] (re-find #"\.c$" (.getName f))) (.listFiles (io/file ed)))
+   (doseq [^File f (filter #(re-find #"\.c$" (str %)) (.listFiles (io/file ed)))
            :let [ns (symbol (str "ced.ed." (s/replace (.getName f) #"\.c$" "")))]]
      (create-ns ns)
      (println "preprocessing and parsing" (str f))
@@ -92,8 +99,13 @@
 (defmethod compiler :default [[_ & args]]
   (println "don't know how to compile" _))
 
+(defmethod compiler :empty-statement [[_ & args]])
+
+;; Fix all this crap, but just so we can have a stub for stdio a bit longer while dealing with core C.
 (binding [*ns* (create-ns 'c)]
-  (clojure.core/refer-clojure :only '[printf])
+  (intern *ns* 'printf  (fn [fmt & args] (apply printf (s/replace fmt #"%ld" "%d") args)))
+  (intern *ns* 'putchar  (fn [c] (print (char c))))
+  (intern *ns* 'getchar (fn [] (.read ^Reader *in*)))
   (intern *ns* 'main))
 
 (defn link [object]
@@ -125,9 +137,22 @@
   {:tag Integer/TYPE
    :coercion `int})
 
+(defmethod compiler :long [_]
+  {:tag Long/TYPE
+   :coercion `long})
+
 (defmethod compiler :float [_]
   {:tag Float/TYPE
    :coercion `float})
+
+(defmethod compiler :double [_]
+  {:tag Double/TYPE
+   :coercion `double})
+
+;; int for now, as otherwise we need to deal with equality.
+(defmethod compiler :char [_]
+  {:tag Integer/TYPE
+   :coercion `int})
 
 ;; Doesn't take most of this stuff into account
 (defmethod compiler :initialized-declarator [[_ & [attribute-specifier-list? declarator
@@ -156,6 +181,9 @@
 (defmethod compiler :string-constant [[_ & [string-literal]]]
   string-literal)
 
+(defmethod compiler :character-constant [[_ & [char-literal]]]
+  (int char-literal))
+
 ;; Not a fan.
 (defn deref? [x] (if (instance? IDeref x) @x x))
 
@@ -179,14 +207,22 @@
 (defn unary-operator [op x]
   `(~(unary-operator op (symbol "clojure.core" (str op))) ~(maybe-deref (compiler x))))
 
+(defmethod compiler :unary-minus-expression [[_ & [cast-expression]]]
+  `(- ~(maybe-deref (compiler cast-expression))))
+
+(defmethod compiler :preincrement-expression [[_ & [unary-expression]]]
+  (let [variable (compiler unary-expression)
+        coercion (:coercion (*locals* variable))]
+    `(swap! ~variable (comp ~coercion inc))))
+
 (def binary-operators {'== `= '!= `not= '% `mod '<< `bit-shift-left '>> `bit-shift-right
-                       '& `bit-and (symbol "^") `bit-xor '| `bit-or
-                       '&& `and '|| `or})
+                       '& `bit-and (symbol "^") `bit-xor '| `bit-or})
 
 (defn binary-operator [op x y]
   `(~(binary-operators op (symbol "clojure.core" (str op)))
     ~(maybe-deref (compiler x)) ~(maybe-deref (compiler y))))
 
+;; Look into keyword inheritance for all this.
 (defmethod compiler :relational-expression [[_ & [relational-expression relational-operator shift-expression]]]
   (binary-operator relational-operator relational-expression shift-expression))
 
@@ -196,11 +232,29 @@
 (defmethod compiler :multiplicative-expression [[_ & [multiplicative-expression multiplicative-operator cast-expression]]]
   (binary-operator multiplicative-operator multiplicative-expression cast-expression))
 
+(defmethod compiler :equality-expression [[_ & [equality-expression equality-operator relational-expression]]]
+  (binary-operator equality-operator equality-expression relational-expression))
+
+(defmethod compiler :logical-or-expression [[_ & [logical-or-expression logical-and-expression]]]
+  (binary-operator 'or logical-or-expression logical-and-expression))
+
+(defmethod compiler :logical-and-expression [[_ & [logical-and-expression bitwise-or-expression]]]
+  (binary-operator 'and logical-and-expression bitwise-or-expression))
+
 (defmethod compiler :expression-list [[_ & expressions]]
   (map compiler expressions))
 
 (defmethod compiler :function-call [[_ & [postfix-expression & [expression-list?]]]]
   `(~(compiler postfix-expression) ~@(map maybe-deref (compiler expression-list?))))
+
+(defmethod compiler :if-statement [[_ & [expression statement]]]
+  `(when ~(compiler expression)
+     ~(compiler statement)))
+
+(defmethod compiler :if-else-statement [[_ & [expression statement else-statement]]]
+  `(if ~(compiler expression)
+     ~(compiler statement)
+     ~(compiler else-statement)))
 
 (defmethod compiler :while-statement [[_ & [expression statement]]]
   `(while ~(compiler expression)
@@ -243,7 +297,7 @@
       link))
 
 (defn compile-and-run [file]
-  (println "running" file)
+  (println "running" (str file))
   (compile-and-link file)
   (c/main))
 
@@ -253,5 +307,6 @@
 
   ;; K&R The C Programming Language examples.
   ;; We're cheating here, stubbing out the declarations and relying on the fact that printf is defined in Clojure.
-  (doseq [f (.listFiles (io/file "resources/k&r"))]
-    (compile-and-run f)))
+  (doseq [f (filter #(re-find #"\.c$" (str %)) (.listFiles (io/file "resources/k&r")))]
+    (with-in-str "hello world\nfrom\nstdin\n"
+      (compile-and-run f))))
