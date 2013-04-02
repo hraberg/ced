@@ -13,7 +13,7 @@ Almost nothing yet. To build, run:
 
 * Using JCPP, using header files from [musl](http://www.musl-libc.org/) to pre-process the Ed 1.7 source tree and feeding it to the Rats! C parser.
 * Building Clojure AST from the output.
-* K&R, "Chapter 1 - A Tutorial Introduction"  works up to parts "1.5, Arrays", by cheating and relying on Clojure's `printf`:
+* K&R, "Chapter 1 - A Tutorial Introduction"  works up to part "1.6, Arrays", by cheating and relying on Clojure's `printf`:
 
 ```
 [ .. output of parsing ed ..]
