@@ -27,7 +27,6 @@
 (defn cpp [file]
   (let [pp (doto (Preprocessor.)
              (.addFeature Feature/DIGRAPHS);
-             (.addFeature Feature/TRIGRAPHS);
              (.addWarning Warning/IMPORT);
              (.setListener (PreprocessorListener.))
              (.addMacro "__JCPP__")

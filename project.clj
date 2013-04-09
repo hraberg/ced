@@ -4,6 +4,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
+                 [instaparse "1.0.0"]
                  [xtc/rats-runtime "2.3.1"]
                  [com.nativelibs4java/anarres-jnaerator "1.2.8"
                   :exclusions [commons-collections/commons-collections

@@ -1,0 +1,164 @@
+TranslationUnit = (FunctionDefinition | Declaration) {FunctionDefinition | Declaration}.
+
+FunctionDefinition =
+  [DeclarationSpecifiers] Declarator {Declaration} Block.
+
+Declaration = DeclarationSpecifiers InitDeclarator { "," InitDeclarator } ";".
+
+DeclarationSpecifiers =
+  (StorageClassSpecifier | TypeSpecifier | TypeQualifier)
+  {StorageClassSpecifier | TypeSpecifier | TypeQualifier}.
+
+StorageClassSpecifier =
+  ("auto" | "register" | "static" | "extern" | "typedef").
+
+TypeSpecifier = ("void" | "char" | "short" | "int" | "long" | "float" |
+  "double" | "signed" | "unsigned" | StructOrUnionSpecifier |
+  EnumSpecifier | typedefName).
+
+TypeQualifier = ("const" | "volatile").
+
+StructOrUnionSpecifier =
+  ( "struct" | "union" )
+  (
+    [ identifier ] "{" StructDeclaration { StructDeclaration } "}" |
+    identifier
+  ).
+
+InitDeclarator = Declarator [ "=" Initializer ].
+
+StructDeclaration =
+  (TypeSpecifier | TypeQualifier) {TypeSpecifier | TypeQualifier} StructDeclarator { "," StructDeclarator }.
+
+StructDeclarator = Declarator | ( [ Declarator ] ":" ConstantExpression ).
+
+EnumSpecifier = "enum" (identifier | ( [ identifier ] "{" Enumerator{"," Enumerator} "}" ) ).
+
+Enumerator = identifier [ "=" ConstantExpression ].
+
+Declarator =
+  [ Pointer ] (identifier | "(" Declarator ")")
+  {
+    "[" [ ConstantExpression ] "]" |
+    "(" ParameterTypeList ")" |
+    "(" [ identifier { "," identifier } ] ")"
+  }.
+
+Pointer = { "*" { TypeQualifier } }.
+
+ParameterTypeList = ParameterDeclaration { "," ParameterDeclaration } [ "," "..." ].
+
+ParameterDeclaration =
+  DeclarationSpecifiers [ Declarator | AbstractDeclarator ].
+
+Initializer = AssignmentExpression | "{" Initializer { "," Initializer } [ "," ] "}".
+
+TypeName = (TypeSpecifier | TypeQualifier) { TypeSpecifier | TypeQualifier } [ AbstractDeclarator ].
+
+AbstractDeclarator =
+  Pointer [ "(" AbstractDeclarator ")" ]
+  {
+    "[" [ ConstantExpression ] "]" |
+    "(" [ ParameterTypeList ] ")"
+  }.
+
+Statement =
+  {(identifier | "case" ConstantExpression | "default") ":"}
+  (
+    [ Expression ] ";" |
+    Block |
+    "if" "(" Expression ")" Statement |
+    "if" "(" Expression ")" Statement "else" Statement |
+    "switch" "(" Expression ")" Statement |
+    "while" "(" Expression ")" Statement |
+    "do" Statement "while" "(" Expression ")" ";" |
+    "for" "(" [ Expression ] ";" [ Expression ] ";" [ Expression ] ")" Statement |
+    "goto" identifier ";" |
+    "continue" ";" |
+    "break" ";" |
+    "return" [Expression] ";"
+  ).
+
+Block = "{" { Declaration } { Statement } "}".
+
+Expression =
+  AssignmentExpression { "," AssignmentExpression }.
+
+AssignmentExpression =
+  {
+    UnaryExpression
+    (
+      "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | "&=" |
+      "^=" | "|="
+    )
+  } ConditionalExpression.
+
+ConditionalExpression =
+  LogicalORExpression [ "?" Expression ":" ConditionalExpression ].
+
+ConstantExpression = ConditionalExpression.
+
+LogicalORExpression =
+  LogicalANDExpression { "||" LogicalANDExpression }.
+
+LogicalANDExpression =
+  InclusiveORExpression { "&&" InclusiveORExpression }.
+
+InclusiveORExpression =
+  ExclusiveORExpression { "|" ExclusiveORExpression }.
+
+ExclusiveORExpression =
+  ANDExpression { "^" ANDExpression }.
+
+ANDExpression =
+  EqualityExpression { "&" EqualityExpression }.
+
+EqualityExpression =
+  RelationalExpression { ("==" | "!=") RelationalExpression }.
+
+RelationalExpression =
+  ShiftExpression { ("<" | ">" | "<=" | ">=") ShiftExpression }.
+
+ShiftExpression =
+  AdditiveExpression { ("<<" | ">>") AdditiveExpression }.
+
+AdditiveExpression =
+  MultiplicativeExpression { ("+" | "-") MultiplicativeExpression }.
+
+MultiplicativeExpression =
+  CastExpression { ("*" | "/" | "%") CastExpression }.
+
+CastExpression =  { "(" TypeName ")" } UnaryExpression.
+
+UnaryExpression =
+  {"++" | "--" | "sizeof"}
+  (
+    "sizeof" "(" TypeName ")" |
+    ("&" | "*" | "+" | "-" | "~" | "!" ) CastExpression |
+    PostFixExpression
+  ).
+
+PostFixExpression =
+  (identifier | Constant | string | "(" Expression ")")
+  {
+    "[" Expression "]" |
+    "(" AssignmentExpression { "," AssignmentExpression } ")" |
+    "." identifier |
+    "->" identifier |
+    "++" |
+    "--"
+  }.
+
+Constant =
+  integerConstant |
+  characterConstant |
+  floatingConstant |
+  enumerationConstant.
+
+identifier = #"\w+"
+string = "\"" #".*" "\""
+integerConstant = #"\d+"
+characterConstant = "'" #".+" "'"
+floatingConstant = #"\d+\.\d+"
+enumerationConstant = #"\w+"
+typedefName = #"\w+"

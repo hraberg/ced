@@ -34,6 +34,8 @@ hello, world
 
 [JCPP](http://www.anarres.org/projects/jcpp/) Shevek, 2006-2011 - "A Java C Preprocessor"
 
+[Instaparse](https://github.com/Engelberg/instaparse) Mark Engelberg, 2013 - "What if context-free grammars were as easy to use as regular expressions?"
+
 [ZETA-C-PD](http://bitsavers.informatik.uni-stuttgart.de/bits/TI/Explorer/zeta-c/) Scott L. Burson, 1987, 2003 - "Zeta-C is a C implementation for Lisp Machines that works by translating C into Lisp."
 
 [Vacietis - C to Common Lisp compiler](https://github.com/vsedach/Vacietis) Vladimir Sedach, 2012
