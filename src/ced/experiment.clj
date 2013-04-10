@@ -51,7 +51,9 @@
   (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
     (keyword r)))
 
-(def ^:dynamic *delimiter* #"\s*")
+(def ^:dynamic *allow-split-tokens* true)
+(def ^:dynamic *pre-delimiter* #"\s*")
+(def ^:dynamic *post-delimiter* (if *allow-split-tokens* #"" #"(:?\s+|$)"))
 (def ^:dynamic *offset* 0)
 (def ^:dynamic *rule* nil)
 (def ^:dynamic *default-result* [])
@@ -82,11 +84,13 @@
           :token (.group m 0))))))
 
 (defn try-parse-skip-delimiter [in m]
-  (if-let [result (try-parse in m)]
-    result
-    (-> in
-        (try-parse *delimiter*)
-        (try-parse m))))
+  (when-let [{:keys [token] :as in} (if-let [result (try-parse in m)]
+                                      result
+                                      (-> in
+                                          (try-parse *pre-delimiter*)
+                                          (try-parse m)))]
+    (when-let [in (try-parse in *post-delimiter*)]
+      (assoc in :token token))))
 
 (defn name-and-quantifier [n]
   (let [ctor (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n)))))
@@ -102,7 +106,9 @@
   (parse [this in]
     (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in this)]
       (binding [*offset* offset]
-        (update-in in [:result] *token-fn* token))))
+        (->  in
+             (update-in [:result] *token-fn* token)
+             (assoc :token nil)))))
 
   Character
   (parse [this in]
