@@ -1,10 +1,11 @@
 (ns ced.experiment
   (:require [clojure.java.io :as io]
+            [clojure.string :as s]
             [clojure.zip :as z]
             [instaparse.core :as insta])
   (:import [java.util.regex Pattern]
            [java.util Map Set List]
-           [clojure.lang Keyword]))
+           [clojure.lang Named]))
 
 (set! *warn-on-reflection* true)
 
@@ -42,16 +43,25 @@
 ;; Not because it's practical, but to see if something interesting falls out from constraint.
 
 (defn maybe-singleton
+  ([])
   ([x] x)
   ([x & args] (vec (cons x args))))
+
+(defn suppressed-rule? [r]
+  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
+    (keyword r)))
 
 (def ^:dynamic *delimiter* #"\s*")
 (def ^:dynamic *offset* 0)
 (def ^:dynamic *rule* nil)
 (def ^:dynamic *default-result* [])
 (def ^:dynamic *token-fn* conj)
-(def ^:dynamic *node-fn* (fn [& args] [*rule* (apply maybe-singleton args)]))
+(def ^:dynamic *node-fn* (fn [& args]
+                           (if (suppressed-rule? *rule*)
+                             (apply maybe-singleton args)
+                             [*rule* (apply maybe-singleton args)])))
 (def ^:dynamic *default-action* maybe-singleton)
+(def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
 
 (defrecord StringParser [string offset token result])
@@ -64,11 +74,12 @@
   (= offset (count string)))
 
 (defn try-parse [{:keys [string offset result] :as in} ^Pattern re]
-  (let [m (re-matcher re (subs string offset))]
-    (when (.lookingAt m)
-      (assoc in
-        :offset (+ offset (.end m 0))
-        :token (.group m 0)))))
+  (when in
+    (let [m (re-matcher re (subs string offset))]
+      (when (.lookingAt m)
+        (assoc in
+          :offset (+ offset (.end m 0))
+          :token (.group m 0))))))
 
 (defn try-parse-skip-delimiter [in m]
   (if-let [result (try-parse in m)]
@@ -76,6 +87,11 @@
     (-> in
         (try-parse *delimiter*)
         (try-parse m))))
+
+(defn name-and-quantifier [n]
+  (let [ctor (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n)))))
+        [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
+    [(ctor n) (when (seq quantifier) (symbol quantifier))]))
 
 ;; Not sure this name is right
 (defprotocol IParser
@@ -98,25 +114,43 @@
     ([this in]
        (parse (re-pattern (Pattern/quote this)) in)))
 
-  Keyword
+  Named
   (parse [this in]
-    (if-let [[rule action] (*grammar* this)]
-      (let [current-result (:result in)]
-        (when-let [result (parse rule (assoc in :result *default-result*))]
-          (binding [*rule* this]
-            (update-in result [:result] #(*token-fn* current-result
-                                                     (*node-fn* (apply (or action *default-action*) %)))))))
-      (throw (IllegalStateException. (str "Unknown rule: " this)))))
+    (let [[this quantifier] (name-and-quantifier this)
+          suppressed (suppressed-rule? this)]
+      (if-let [[rule action] (some *grammar* [this suppressed])]
+        (letfn [(parse-one [in]
+                  (let [current-result (:result in)]
+                    (when-let [result (parse rule (assoc in :result *default-result*))]
+                      (binding [*rule* this]
+                        (update-in result [:result]
+                                   #(*token-fn* current-result
+                                                (*node-fn* (apply (or action *default-action*) %))))))))
+                (parse-many [in quantifier]
+                  (case quantifier
+                    ? (or (parse-one in) in)
+                    * (loop [in in]
+                        (if-let [in (parse-one in)]
+                           (recur in)
+                           in))
+                    + (when-let [in (parse-one in)]
+                        (recur in :*))
+                    (parse-one in)))]
+          (parse-many in quantifier))
+        (throw (IllegalStateException. (str "Unknown rule: " this))))))
 
   Set
   (parse [this in]
     (when-let [alternatives (seq (remove nil? (map #(parse % in) this)))]
-      (apply max-key :offset alternatives)))
+      (apply max-key :offset (sort-by *alternatives-rank* alternatives))))
 
   Map
   (parse [this in]
-    (binding [*grammar* this]
-      (parse (set (keys this)) (string-parser in))))
+    (when-let [in (binding [*grammar* this]
+                    (parse (set (keys this)) (string-parser in)))]
+      (if-not (at-end? in)
+        (recur this in)
+        in)))
 
   List
   (parse [this in]
