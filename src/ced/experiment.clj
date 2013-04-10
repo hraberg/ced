@@ -47,16 +47,6 @@
   ([x] x)
   ([x & args] (vec (cons x args))))
 
-(defn suppressed-rule? [r]
-  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
-    (keyword r)))
-
-(defn suppressed-defintion? [r]
-  (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
-    (if (lookup-rule suppressed-defintion)
-      suppressed-defintion
-      r)))
-
 (def ^:dynamic *allow-split-tokens* true)
 (def ^:dynamic *pre-delimiter* #"\s*")
 (def ^:dynamic *post-delimiter* (if *allow-split-tokens* #"" #"(:?\s+|$)"))
@@ -72,6 +62,20 @@
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
 (def ^:dynamic *seen-rules* #{})
+
+(defn lookup-rule [rule]
+  (when-let [result (*grammar* rule)]
+    (if (sequential? result) result [result nil]))  )
+
+(defn suppressed-rule? [r]
+  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
+    (keyword r)))
+
+(defn suppressed-defintion? [r]
+  (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
+    (if (lookup-rule suppressed-defintion)
+      suppressed-defintion
+      r)))
 
 (defrecord StringParser [string offset token result])
 
@@ -103,10 +107,6 @@
   (let [ctor (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n)))))
         [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
     [(ctor n) (when (seq quantifier) (symbol quantifier))]))
-
-(defn lookup-rule [rule]
-  (when-let [result (*grammar* rule)]
-    (if (sequential? result) result [result nil]))  )
 
 ;; Not sure this name is right
 (defprotocol IParser
