@@ -53,18 +53,18 @@
 (defn try-parse [{:keys [string offset result] :as in} ^Pattern re]
   (when in
     (let [m (re-matcher re (subs string offset))]
-      (if (.lookingAt m)
+      (when (.lookingAt m)
         {:string string
          :offset (+ offset (.end m 0))
          :token (.group m 0)
-         :result result}
-        (assoc in :token nil :result nil)))))
+         :result result}))))
 
 (defn try-parse-skip-delimiter [in m]
-  (let [r (try-parse in m)]
-    (if (:token r)
-      r
-      (recur (try-parse in *delimiter*) m))))
+  (if-let [result (try-parse in m)]
+    result
+    (-> in
+        (try-parse *delimiter*)
+        (try-parse m))))
 
 (defn grammar [& rules]
   (vec (map vec (partition 2 (apply list rules)))))
@@ -107,16 +107,15 @@
 (defn parse-re
   ([in m] (parse-re in m *default-result-fn*))
   ([in m f]
-     (let [{:keys [token offset] :as in} (try-parse-skip-delimiter in m)]
-       (when token
-         (binding [*offset* offset]
-           (update-in in [:result] f token))))))
+     (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in m)]
+       (binding [*offset* offset]
+         (update-in in [:result] f token)))))
 
 (defn parse-alts
   ([in alts] (parse-alts in alts *default-result-fn*))
   ([in alts f]
-     (first (sort-by (comp - :offset)
-                     (remove nil? (map #(parse-re in % f) alts))))))
+     (apply max-key :offset
+            (map #(parse-re in % f) alts))))
 
 (defn ensure-seq [x]
   (if (sequential? x) x (repeat x)))
@@ -125,10 +124,10 @@
   ([in m] (parse-re-seq in m *default-result-fn*))
   ([in m f]
      (loop [in in
-            [m & rst-m] (ensure-seq m)]
-       (if (or (not in) (not m) (at-end? in))
-         in
-         (recur (parse-re in m f) rst-m)))))
+            [m & m-rst] (ensure-seq m)]
+       (if (and in m (not (at-end? in)))
+         (recur (parse-re in m f) m-rst)
+         in))))
 
 ;; Ancient crap from yesterday.
 
