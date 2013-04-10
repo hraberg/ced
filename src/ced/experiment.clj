@@ -54,6 +54,7 @@
     (keyword r)))
 
 (def ^:dynamic *allow-split-tokens* true)
+(def ^:dynamic *memoize-tokenization* false)
 (def ^:dynamic *pre-delimiter* #"\s*")
 (def ^:dynamic *post-delimiter* (if *allow-split-tokens* #"" #"(:?\s+|$)"))
 (def ^:dynamic *offset* 0)
@@ -105,6 +106,16 @@
     (when-let [in (try-parse in *post-delimiter*)]
       (assoc in :token token))))
 
+(defn next-token [in m]
+  (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in m)]
+    (binding [*offset* offset]
+      (->  in
+           (update-in [:result] *token-fn* token)
+           (assoc :token nil)))))
+
+(when *memoize-tokenization*
+  (alter-var-root #'next-token memoize))
+
 (defn name-and-quantifier [n]
   (let [ctor (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n)))))
         [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
@@ -117,11 +128,7 @@
 (extend-protocol IParser
   Pattern
   (parse [this in]
-    (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in this)]
-      (binding [*offset* offset]
-        (->  in
-             (update-in [:result] *token-fn* token)
-             (assoc :token nil)))))
+    (next-token in this))
 
   Character
   (parse [this in]
@@ -207,9 +214,8 @@
                  :number #"[0-9]+"))
 
 ;; Doesn't work yet.
-(expression "2+5")
-;; (expression "2+5*2")
-
+(expression "2+2")
+;(expression "2+5*2")
 
 ;; Ancient crap from yesterday.
 
