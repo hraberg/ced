@@ -65,6 +65,7 @@
 (def ^:dynamic *default-action* maybe-singleton)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
+(def ^:dynamic *seen-rules* #{})
 
 (defrecord StringParser [string offset token result])
 
@@ -97,6 +98,10 @@
         [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
     [(ctor n) (when (seq quantifier) (symbol quantifier))]))
 
+(defn lookup-rule [rule]
+  (when-let [result (*grammar* rule)]
+    (if (sequential? result) result [result nil]))  )
+
 ;; Not sure this name is right
 (defprotocol IParser
   (parse [this] [this in]))
@@ -122,28 +127,30 @@
 
   Named
   (parse [this in]
-    (let [[this quantifier] (name-and-quantifier this)
-          suppressed (suppressed-rule? this)]
-      (if-let [[rule action] (some *grammar* [this suppressed])]
-        (letfn [(parse-one [in]
-                  (let [current-result (:result in)]
-                    (when-let [result (parse rule (assoc in :result *default-result*))]
-                      (binding [*rule* this]
-                        (update-in result [:result]
-                                   #(*token-fn* current-result
-                                                (*node-fn* (apply (or action *default-action*) %))))))))
-                (parse-many [in quantifier]
-                  (case quantifier
-                    ? (or (parse-one in) in)
-                    * (loop [in in]
-                        (if-let [in (parse-one in)]
-                           (recur in)
-                           in))
-                    + (when-let [in (parse-one in)]
-                        (recur in :*))
-                    (parse-one in)))]
-          (parse-many in quantifier))
-        (throw (IllegalStateException. (str "Unknown rule: " this))))))
+    (when-not (*seen-rules* this)
+      (binding [*seen-rules* (conj *seen-rules* this)]
+        (let [[this quantifier] (name-and-quantifier this)
+              suppressed (suppressed-rule? this)]
+          (if-let [[rule action] (some lookup-rule [this suppressed])]
+            (letfn [(parse-one [in]
+                      (let [current-result (:result in)]
+                        (when-let [result (parse rule (assoc in :result *default-result*))]
+                          (binding [*rule* this]
+                            (update-in result [:result]
+                                       #(*token-fn* current-result
+                                                    (*node-fn* (apply (or action *default-action*) %))))))))
+                    (parse-many [in quantifier]
+                      (case quantifier
+                        ? (or (parse-one in) in)
+                        * (loop [in in]
+                            (if-let [in (parse-one in)]
+                              (recur in)
+                              in))
+                        + (when-let [in (parse-one in)]
+                            (recur in :*))
+                        (parse-one in)))]
+              (parse-many in quantifier))
+            (throw (IllegalStateException. (str "Unknown rule: " this))))))))
 
   Set
   (parse [this in]
@@ -152,11 +159,12 @@
 
   Map
   (parse [this in]
-    (when-let [in (binding [*grammar* this]
-                    (parse (set (keys this)) (string-parser in)))]
+    (if-let [in (binding [*grammar* this]
+                  (parse (set (keys this)) (string-parser in)))]
       (if-not (at-end? in)
         (recur this in)
-        in)))
+        in)
+      (parse {:no-match [#"\S*" #(throw (IllegalStateException. (str "Don't know how to parse: " %)))]} in)))
 
   List
   (parse [this in]
@@ -171,6 +179,27 @@
     ([this] (parse *grammar* this))
     ([this parser]
        (parse parser this))))
+
+(defn grammar [& rules]
+  (into {} (map vec (partition 2 (apply list rules)))))
+
+(defn create-parser [& rules]
+  (partial parse (apply grammar rules)))
+
+(def expression (create-parser
+                 :expr :add-sub
+                 :add [[:add-sub "+" :mul-div]]
+                 :sub [[:add-sub "-" :mul-div]]
+                 :mul [[:mul-div "*" :term]]
+                 :div [[:mul-div "/" :term]]
+                 :add-sub #{:mul-div :add :sub}
+                 :mul-div #{:term :mul :div}
+                 :term #{:number ["(" :add-sub ")"]}
+                 :number #"[0-9]+"))
+
+;; Doesn't work yet.
+ (expression "2+5")
+
 
 ;; Ancient crap from yesterday.
 
