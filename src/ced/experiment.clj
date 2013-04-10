@@ -68,11 +68,11 @@
 (def ^:dynamic *default-action* maybe-singleton)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
-(def ^:dynamic *seen-rules* #{})
+(def ^:dynamic *rules-seen-at-point* #{})
 
 (defn lookup-rule [rule]
   (when-let [result (*grammar* rule)]
-    (if (sequential? result) result [result nil]))  )
+    (if (sequential? result) result [result nil])))
 
 (defn suppressed-defintion? [r]
   (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
@@ -106,13 +106,16 @@
     (when-let [in (try-parse in *post-delimiter*)]
       (assoc in :token token))))
 
-(defn next-token [in m]
+(defn next-token [in m capture?]
   (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in m)]
-    (binding [*offset* offset]
-      (->  in
-           (update-in [:result] *token-fn* token)
-           (assoc :token nil)))))
+    (assoc (if capture?
+             (binding [*offset* offset]
+               (->  in
+                    (update-in [:result] *token-fn* token)))
+             in) :token nil)))
 
+;; We're actually rather want something like this, which acts on a higher level:
+;; http://cs.nyu.edu/rgrimm/xtc/rats-intro.html#transient
 (when *memoize-tokenization*
   (alter-var-root #'next-token memoize))
 
@@ -128,7 +131,7 @@
 (extend-protocol IParser
   Pattern
   (parse [this in]
-    (next-token in this))
+    (next-token in this true))
 
   Character
   (parse [this in]
@@ -138,12 +141,12 @@
   (parse
     ([this] (parse (string-parser this)))
     ([this in]
-       (parse (re-pattern (Pattern/quote this)) in)))
+       (next-token in (re-pattern (Pattern/quote this)) false)))
 
   Named
   (parse [this in]
-    (when-not (*seen-rules* this)
-      (binding [*seen-rules* (conj *seen-rules* this)]
+    (when-not (*rules-seen-at-point* [this in])
+      (binding [*rules-seen-at-point* (conj *rules-seen-at-point* [this in])]
         (let [[this quantifier] (name-and-quantifier this)
               suppressed (suppressed-rule? this)
               this (suppressed-defintion? this)]
@@ -170,7 +173,7 @@
 
   Set
   (parse [this in]
-    (when-let [alternatives (seq (remove nil? (map #(parse % in) this)))]
+    (when-let [alternatives (seq (distinct (remove nil? (map #(parse % in) this))))]
       (apply max-key :offset (sort-by *alternatives-rank* alternatives))))
 
   Map
@@ -196,6 +199,8 @@
     ([this parser]
        (parse parser this))))
 
+(def choice os/ordered-set)
+
 (defn grammar [& rules]
   (into (om/ordered-map) (map vec (partition 2 (apply list rules)))))
 
@@ -213,101 +218,7 @@
                  :<term> #{:number ["(" :add-sub ")"]}
                  :number #"[0-9]+"))
 
-;; Doesn't work yet.
-(expression "2+2")
-;(expression "2+5*2")
-
-;; Ancient crap from yesterday.
-
-;; (defn grammar [& rules]
-;;   (vec (map vec (partition 2 (apply list rules)))))
-
-;; (def fun (comp resolve symbol))
-;; (defn binary-op [x op y] ((fun op) x y))
-
-;; Doesn't work properly, like operator precedance among other things.
-;; (def ^:dynamic *grammar*
-;;   "expr = add-sub
-;;      <add-sub> = mul-div | add | sub
-;;      add = add-sub <'+'> mul-div
-;;      sub = add-sub <'-'> mul-div
-;;      <mul-div> = term | mul | div
-;;      mul = mul-div <'*'> term
-;;      div = mul-div <'/'> term
-;;      <term> = number | <'('> add-sub <')'>
-;;      number = #'[0-9]+'"
-;;    ;;  (grammar
-;;    ;; :add [[:add-sub "+" :mul-div] binary-op]
-;;    ;; :sub [[:add-sub "-" :mul-div] binary-op]
-;;    ;; :mul [[:mul-div "*" :term] binary-op]
-;;    ;; :div [[:mul-div "/" :term] binary-op]
-;;    ;; :add-sub [[[:mul-div :add :sub]]]
-;;    ;; :mul-div [[[:term :mul :div]]]
-;;    ;; :term [[[:number ["(" :add-sub ")"]]]]
-;;    ;; :number [#"[0-9]+" read-string])
-;;   (grammar
-;;    :add [[:add-sub "+" :mul-div]]
-;;    :sub [[:add-sub "-" :mul-div]]
-;;    :mul [[:mul-div "*" :term]]
-;;    :div [[:mul-div "/" :term]]
-;;    :add-sub [[[:mul-div :add :sub]]]
-;;    :mul-div [[[:term :mul :div]]]
-;;    :term [[[:number ["(" :add-sub ")"]]]]
-;;    :number [#"[0-9]+"]))
-
-;; (defn parse-any [grammar]
-;;   (some (fn [[n p]]
-;;           (if-let [token (some #(when (-> % meta :token-types set n) %)
-;;                                (:unused-tokens @*s*))] ;; 5 minutes later I have no clue how this actually works.
-;;             (do
-;;               (swap! *s* assoc-in [:unused-tokens] [])
-;;               token)
-;;             (let [[m f] (if (sequential? p) p [p])
-;;                   f (if f f (fn [& args] (if (= 1 (count args)) (first args) args)))
-;;                   result (cond
-;;                           (instance? Pattern m) [n (parse-re m f)]
-;;                           (string? m) [n (parse-re (re-pattern (Pattern/quote m)) f)]
-;;                           (vector? m) (parse-all n m f))]
-;;               (when (second result)
-;;                 (swap! *s* assoc-in [:unused-tokens] [result])
-;;                 result))))
-;;         (conj grammar
-;;               [:no-match [#"\S*" #(throw (IllegalStateException. (str "Don't know how to parse: " %)))]])))
-
-;; (defn terminal? [x]
-;;   (and (vector? x) (keyword? (first x))))
-
-;; (def ^:dynamic *seen-rules* #{})
-
-;; (defn parse-all [n rules f]
-;;   (if (*seen-rules* rules)
-;;     (throw (IllegalStateException. "Infinite Loop"))
-;;     (binding [*seen-rules* (conj *seen-rules* rules)]
-;;       (let [before @*s*
-;;             known-rule? (into {} *grammar*)
-;;             map-rules (fn map-rules [rd]
-;;                         (if (coll? rd)
-;;                           (vec (mapcat map-rules rd))
-;;                           (if-let [r (known-rule? rd)]
-;;                             [[rd r]]
-;;                             [[(keyword (gensym)) rd]])))]
-;;         (try
-;;           (try
-;;             (let [result (map parse-any (map map-rules rules))]
-;;               (with-meta [n (apply f result ;(map second result)
-;;                                    )]
-;;                 {:token-types (vec (map first result))}
-;;                 ))
-;;             (finally
-;;              (swap! *s* assoc-in [:unused-tokens] [])))
-;;           (catch IllegalStateException _
-;;             (do (reset! *s* before)
-;;                 nil)))))))
-
-;; (defn parse
-;;   ([s grammar] (binding [*s* (atom {:string s :offset 0 :unused-tokens []})
-;;                          *grammar* grammar]
-;;                  (doall (for [_ (take-while true? (repeatedly #(> (count (:string @*s*))
-;;                                                                   (:offset @*s*))))]
-;;                           (parse-any *grammar*)))))
-;;   ([s] (parse s *grammar*)))
+(expression "1+2")
+(expression "2+5*2")
+;; Doesn't work yet
+;(expression "1-2/(3-4)+5*6")
