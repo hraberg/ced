@@ -2,7 +2,9 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
             [clojure.zip :as z]
-            [instaparse.core :as insta])
+            [instaparse.core :as insta]
+            [flatland.ordered.map :as om]
+            [flatland.ordered.set :as os])
   (:import [java.util.regex Pattern]
            [java.util Map Set List]
            [clojure.lang Named]))
@@ -47,6 +49,10 @@
   ([x] x)
   ([x & args] (vec (cons x args))))
 
+(defn suppressed-rule? [r]
+  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
+    (keyword r)))
+
 (def ^:dynamic *allow-split-tokens* true)
 (def ^:dynamic *pre-delimiter* #"\s*")
 (def ^:dynamic *post-delimiter* (if *allow-split-tokens* #"" #"(:?\s+|$)"))
@@ -66,10 +72,6 @@
 (defn lookup-rule [rule]
   (when-let [result (*grammar* rule)]
     (if (sequential? result) result [result nil]))  )
-
-(defn suppressed-rule? [r]
-  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
-    (keyword r)))
 
 (defn suppressed-defintion? [r]
   (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
@@ -167,7 +169,7 @@
   Map
   (parse [this in]
     (if-let [in (binding [*grammar* this]
-                  (parse (set (keys this)) (string-parser in)))]
+                  (parse (os/into-ordered-set (keys this)) (string-parser in)))]
       (if-not (at-end? in)
         (recur this in)
         in)
@@ -188,24 +190,25 @@
        (parse parser this))))
 
 (defn grammar [& rules]
-  (into {} (map vec (partition 2 (apply list rules)))))
+  (into (om/ordered-map) (map vec (partition 2 (apply list rules)))))
 
 (defn create-parser [& rules]
   (partial parse (apply grammar rules)))
 
 (def expression (create-parser
                  :expr :add-sub
+                 :<add-sub> #{:mul-div :add :sub}
                  :add [[:add-sub "+" :mul-div]]
                  :sub [[:add-sub "-" :mul-div]]
+                 :<mul-div> #{:term :mul :div}
                  :mul [[:mul-div "*" :term]]
                  :div [[:mul-div "/" :term]]
-                 :<add-sub> #{:mul-div :add :sub}
-                 :<mul-div> #{:term :mul :div}
                  :<term> #{:number ["(" :add-sub ")"]}
                  :number #"[0-9]+"))
 
 ;; Doesn't work yet.
 (expression "2+5")
+;; (expression "2+5*2")
 
 
 ;; Ancient crap from yesterday.
