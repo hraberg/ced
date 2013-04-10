@@ -2,9 +2,13 @@
   (:require [clojure.java.io :as io]
             [clojure.zip :as z]
             [instaparse.core :as insta])
-  (:import [java.util.regex Pattern]))
+  (:import [java.util.regex Pattern]
+           [java.util Map Set List]
+           [clojure.lang Keyword]))
 
 (set! *warn-on-reflection* true)
+
+;; Instaparse stuff
 
 (def arithmetic
   (insta/parser
@@ -37,27 +41,34 @@
 ;; I would like Ced to have a pre-processor and C-to-Clojure compiler in one walk from source without external dependencies.
 ;; Not because it's practical, but to see if something interesting falls out from constraint.
 
+(defn maybe-singleton
+  ([x] x)
+  ([x & args] (vec (cons x args))))
+
 (def ^:dynamic *delimiter* #"\s*")
 (def ^:dynamic *offset* 0)
+(def ^:dynamic *rule* nil)
 (def ^:dynamic *default-result* [])
-(def ^:dynamic *default-result-fn* conj)
+(def ^:dynamic *token-fn* conj)
+(def ^:dynamic *node-fn* (fn [& args] [*rule* (apply maybe-singleton args)]))
+(def ^:dynamic *default-action* maybe-singleton)
+(def ^:dynamic *grammar* {})
 
-(defn in-str
-  ([s] (in-str s *default-result*))
-  ([s result]
-     {:string s :offset 0 :token nil :result result}))
+(defrecord StringParser [string offset token result])
+
+(defn string-parser
+  ([s] (if (instance? StringParser s) s (string-parser s *default-result*)))
+  ([s result] (StringParser. s 0 nil result)))
 
 (defn at-end? [{:keys [string offset] :as in}]
   (= offset (count string)))
 
 (defn try-parse [{:keys [string offset result] :as in} ^Pattern re]
-  (when in
-    (let [m (re-matcher re (subs string offset))]
-      (when (.lookingAt m)
-        {:string string
-         :offset (+ offset (.end m 0))
-         :token (.group m 0)
-         :result result}))))
+  (let [m (re-matcher re (subs string offset))]
+    (when (.lookingAt m)
+      (assoc in
+        :offset (+ offset (.end m 0))
+        :token (.group m 0)))))
 
 (defn try-parse-skip-delimiter [in m]
   (if-let [result (try-parse in m)]
@@ -66,70 +77,98 @@
         (try-parse *delimiter*)
         (try-parse m))))
 
-(defn grammar [& rules]
-  (vec (map vec (partition 2 (apply list rules)))))
+;; Not sure this name is right
+(defprotocol IParser
+  (parse [this] [this in]))
 
-(def fun (comp resolve symbol))
-(defn binary-op [x op y] ((fun op) x y))
+(extend-protocol IParser
+  Pattern
+  (parse [this in]
+    (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in this)]
+      (binding [*offset* offset]
+        (update-in in [:result] *token-fn* token))))
 
-;; Doesn't work properly, like operator precedance among other things.
-(def ^:dynamic *grammar*
-  "expr = add-sub
-     <add-sub> = mul-div | add | sub
-     add = add-sub <'+'> mul-div
-     sub = add-sub <'-'> mul-div
-     <mul-div> = term | mul | div
-     mul = mul-div <'*'> term
-     div = mul-div <'/'> term
-     <term> = number | <'('> add-sub <')'>
-     number = #'[0-9]+'"
-   ;;  (grammar
-   ;; :add [[:add-sub "+" :mul-div] binary-op]
-   ;; :sub [[:add-sub "-" :mul-div] binary-op]
-   ;; :mul [[:mul-div "*" :term] binary-op]
-   ;; :div [[:mul-div "/" :term] binary-op]
-   ;; :add-sub [[[:mul-div :add :sub]]]
-   ;; :mul-div [[[:term :mul :div]]]
-   ;; :term [[[:number ["(" :add-sub ")"]]]]
-   ;; :number [#"[0-9]+" read-string])
-  (grammar
-   :add [[:add-sub "+" :mul-div]]
-   :sub [[:add-sub "-" :mul-div]]
-   :mul [[:mul-div "*" :term]]
-   :div [[:mul-div "/" :term]]
-   :add-sub [[[:mul-div :add :sub]]]
-   :mul-div [[[:term :mul :div]]]
-   :term [[[:number ["(" :add-sub ")"]]]]
-   :number [#"[0-9]+"]))
+  Character
+  (parse [this in]
+    (parse (str this) in))
 
-(declare parse-all)
+  String
+  (parse
+    ([this] (parse (string-parser this)))
+    ([this in]
+       (parse (re-pattern (Pattern/quote this)) in)))
 
-(defn parse-re
-  ([in m] (parse-re in m *default-result-fn*))
-  ([in m f]
-     (when-let [{:keys [token offset] :as in} (try-parse-skip-delimiter in m)]
-       (binding [*offset* offset]
-         (update-in in [:result] f token)))))
+  Keyword
+  (parse [this in]
+    (if-let [[rule action] (*grammar* this)]
+      (let [current-result (:result in)]
+        (when-let [result (parse rule (assoc in :result *default-result*))]
+          (binding [*rule* this]
+            (update-in result [:result] #(*token-fn* current-result
+                                                     (*node-fn* (apply (or action *default-action*) %)))))))
+      (throw (IllegalStateException. (str "Unknown rule: " this)))))
 
-(defn parse-alts
-  ([in alts] (parse-alts in alts *default-result-fn*))
-  ([in alts f]
-     (apply max-key :offset
-            (map #(parse-re in % f) alts))))
+  Set
+  (parse [this in]
+    (when-let [alternatives (seq (remove nil? (map #(parse % in) this)))]
+      (apply max-key :offset alternatives)))
 
-(defn ensure-seq [x]
-  (if (sequential? x) x (repeat x)))
+  Map
+  (parse [this in]
+    (binding [*grammar* this]
+      (parse (set (keys this)) (string-parser in))))
 
-(defn parse-re-seq
-  ([in m] (parse-re-seq in m *default-result-fn*))
-  ([in m f]
-     (loop [in in
-            [m & m-rst] (ensure-seq m)]
-       (if (and in m (not (at-end? in)))
-         (recur (parse-re in m f) m-rst)
-         in))))
+  List
+  (parse [this in]
+    (loop [in in
+           [m & m-rst] this]
+      (if (and in m (not (at-end? in)))
+        (recur (parse m in) m-rst)
+        (when-not m in))))
+
+  StringParser
+  (parse
+    ([this] (parse *grammar* this))
+    ([this parser]
+       (parse parser this))))
 
 ;; Ancient crap from yesterday.
+
+;; (defn grammar [& rules]
+;;   (vec (map vec (partition 2 (apply list rules)))))
+
+;; (def fun (comp resolve symbol))
+;; (defn binary-op [x op y] ((fun op) x y))
+
+;; Doesn't work properly, like operator precedance among other things.
+;; (def ^:dynamic *grammar*
+;;   "expr = add-sub
+;;      <add-sub> = mul-div | add | sub
+;;      add = add-sub <'+'> mul-div
+;;      sub = add-sub <'-'> mul-div
+;;      <mul-div> = term | mul | div
+;;      mul = mul-div <'*'> term
+;;      div = mul-div <'/'> term
+;;      <term> = number | <'('> add-sub <')'>
+;;      number = #'[0-9]+'"
+;;    ;;  (grammar
+;;    ;; :add [[:add-sub "+" :mul-div] binary-op]
+;;    ;; :sub [[:add-sub "-" :mul-div] binary-op]
+;;    ;; :mul [[:mul-div "*" :term] binary-op]
+;;    ;; :div [[:mul-div "/" :term] binary-op]
+;;    ;; :add-sub [[[:mul-div :add :sub]]]
+;;    ;; :mul-div [[[:term :mul :div]]]
+;;    ;; :term [[[:number ["(" :add-sub ")"]]]]
+;;    ;; :number [#"[0-9]+" read-string])
+;;   (grammar
+;;    :add [[:add-sub "+" :mul-div]]
+;;    :sub [[:add-sub "-" :mul-div]]
+;;    :mul [[:mul-div "*" :term]]
+;;    :div [[:mul-div "/" :term]]
+;;    :add-sub [[[:mul-div :add :sub]]]
+;;    :mul-div [[[:term :mul :div]]]
+;;    :term [[[:number ["(" :add-sub ")"]]]]
+;;    :number [#"[0-9]+"]))
 
 ;; (defn parse-any [grammar]
 ;;   (some (fn [[n p]]
