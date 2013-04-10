@@ -51,6 +51,12 @@
   (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
     (keyword r)))
 
+(defn suppressed-defintion? [r]
+  (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
+    (if (lookup-rule suppressed-defintion)
+      suppressed-defintion
+      r)))
+
 (def ^:dynamic *allow-split-tokens* true)
 (def ^:dynamic *pre-delimiter* #"\s*")
 (def ^:dynamic *post-delimiter* (if *allow-split-tokens* #"" #"(:?\s+|$)"))
@@ -130,7 +136,8 @@
     (when-not (*seen-rules* this)
       (binding [*seen-rules* (conj *seen-rules* this)]
         (let [[this quantifier] (name-and-quantifier this)
-              suppressed (suppressed-rule? this)]
+              suppressed (suppressed-rule? this)
+              this (suppressed-defintion? this)]
           (if-let [[rule action] (some lookup-rule [this suppressed])]
             (letfn [(parse-one [in]
                       (let [current-result (:result in)]
@@ -192,13 +199,13 @@
                  :sub [[:add-sub "-" :mul-div]]
                  :mul [[:mul-div "*" :term]]
                  :div [[:mul-div "/" :term]]
-                 :add-sub #{:mul-div :add :sub}
-                 :mul-div #{:term :mul :div}
-                 :term #{:number ["(" :add-sub ")"]}
+                 :<add-sub> #{:mul-div :add :sub}
+                 :<mul-div> #{:term :mul :div}
+                 :<term> #{:number ["(" :add-sub ")"]}
                  :number #"[0-9]+"))
 
 ;; Doesn't work yet.
- (expression "2+5")
+(expression "2+5")
 
 
 ;; Ancient crap from yesterday.
