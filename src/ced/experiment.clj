@@ -231,14 +231,14 @@
 ;; Starts getting clunky, holding off to macrofiy it as this is not the core issue.
 (defn create-parser
   ([& rules]
-     (let [[[options] rules] (split-with map? rules)]
-       (let [grammar (apply grammar rules)]
-         (fn parser [in]
-           (with-bindings (or options {})
-             (when-let [in (parse grammar in)]
-               (if (at-end? in)
-                 (*extract-result* in)
-                 (parse *failure-grammar* in)))))))))
+     (let [[[options] rules] (split-with map? rules)
+           grammar (apply grammar rules)]
+       (fn parser [in]
+         (with-bindings (or options {})
+           (when-let [in (parse grammar in)]
+             (if (at-end? in)
+               (*extract-result* in)
+               (parse *failure-grammar* in))))))))
 
 (def expression (create-parser
                  :expr      :add-sub
