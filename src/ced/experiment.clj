@@ -58,19 +58,18 @@
   (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
     (keyword r)))
 
-(def ^:dynamic *allow-split-tokens* true)
+(declare node)
+
+(def ^:dynamic *allow-split-tokens* true) ;; Overrides post-delimiter.
 (def ^:dynamic *memoize-tokenization* false)
 (def ^:dynamic *pre-delimiter* #"\s*")
-(def ^:dynamic *post-delimiter* (if *allow-split-tokens* #"" #"(:?\s+|$)"))
+(def ^:dynamic *post-delimiter* #"(:?\s+|$)")
 (def ^:dynamic *offset* 0)
 (def ^:dynamic *rule* nil)
 (def ^:dynamic *default-result* [])
 (def ^:dynamic *token-fn* conj)
 (def ^:dynamic *suppress-tags* false)
-(def ^:dynamic *node-fn* (fn [& args]
-                           (if (or *suppress-tags* (suppressed-rule? *rule*))
-                             (apply maybe-singleton args)
-                             [*rule* (apply maybe-singleton args)])))
+(def ^:dynamic *node-fn* node)
 (def ^:dynamic *default-action* maybe-singleton)
 (def ^:dynamic *grammar-actions* true)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
@@ -79,6 +78,17 @@
 (def ^:dynamic *start-rule* first)
 (def ^:dynamic *extract-result* (comp first :result))
 (def ^:dynamic *rules-seen-at-point* #{})
+
+(defn node? [x]
+  (and (vector? x) (instance? Named (first x))))
+
+(defn node [& args]
+  (let [args (apply maybe-singleton args)]
+    (if (or *suppress-tags* (suppressed-rule? *rule*))
+      args
+      (if (and (sequential? args) (not (node? args)))
+        (vec (cons *rule* args))
+        [*rule* args]))))
 
 (defn ctor-for-named [n]
   (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n))))))
@@ -112,7 +122,7 @@
                                       (-> in
                                           (try-parse *pre-delimiter*)
                                           (try-parse m)))]
-    (when-let [in (try-parse in *post-delimiter*)]
+    (when-let [in (if *allow-split-tokens* in (try-parse in *post-delimiter*))]
       (assoc in :token token))))
 
 (defn next-token [in m capture?]
@@ -138,16 +148,16 @@
         [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
     [(ctor n) (when (seq quantifier) (symbol quantifier))]))
 
+;; Not sure this name is right
+(defprotocol IParser
+  (parse [this] [this in]))
+
 (defn fold-into [ctor coll]
   (r/fold (r/monoid into ctor) conj coll))
 
 ;; This could potentially be a tree, but requires to restructure and use reducers all over the place.
 (defn valid-choices [in ms]
   (fold-into vector (r/remove nil? (r/map #(parse % in) (vec ms)))))
-
-;; Not sure this name is right
-(defprotocol IParser
-  (parse [this] [this in]))
 
 (extend-protocol IParser
   Pattern
@@ -343,3 +353,22 @@
 ;; 7 | <factor>
 ;; 8 <factor> ::= number
 ;; 9 | id
+
+;; "As example use of our combinators, consider the following ambiguous grammar from Tomita (1986)."
+;; http://cs.uwindsor.ca/~richard/PUBLICATIONS/PADL_08.pdf
+
+;; s ::= np vp | s pp   np ::= noun | det noun | np pp
+;; pp ::= prep np       vp ::= verb np
+;; det ::= "a" | "the"  noun ::= "i" | "man" | "park" | "bat"
+;; verb ::= "saw"       prep ::= "in" | "with"
+(def ambiguous (create-parser
+                :s    #{[:np :vp] [:s :pp]}
+                :pp   [:prep :np]
+                :det  #{#"a" #"the"}
+                :verb #"saw"
+                :np   #{:noun [:det :noun] [:np :pp]}
+                :vp   [:verb :np]
+                :noun #{#"i" #"man" #"park" #"bat"}
+                :prep #{#"in" #"with"}))
+
+(ambiguous "i saw a man in the park with a bat")
