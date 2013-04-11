@@ -1,10 +1,5 @@
 (ns ced.experiment
-  (:require [clojure.java.io :as io]
-            [clojure.core.reducers :as r]
-            [clojure.string :as s]
-            [clojure.walk :as w]
-            [clojure.zip :as z]
-            [instaparse.core :as insta]
+  (:require [clojure.core.reducers :as r]
             [flatland.ordered.map :as om]
             [flatland.ordered.set :as os])
   (:import [java.util.regex Pattern]
@@ -12,43 +7,14 @@
            [clojure.lang Keyword ArityException]
            [flatland.ordered.set OrderedSet]))
 
-(set! *warn-on-reflection* true)
-
-;; Instaparse stuff
-
-(def arithmetic
-  (insta/parser
-    "expr = add-sub
-     <add-sub> = mul-div | add | sub
-     add = add-sub <'+'> mul-div
-     sub = add-sub <'-'> mul-div
-     <mul-div> = term | mul | div
-     mul = mul-div <'*'> term
-     div = mul-div <'/'> term
-     <term> = number | <'('> add-sub <')'>
-     number = #'[0-9]+'"))
-
-(defn evaluate [ast]
-  (insta/transform {:add +, :sub -, :mul *, :div /,
-                    :number read-string :expr identity}
-                   ast))
-
-(evaluate (arithmetic "1-2/(3-4)+5*6"))
-
-(evaluate (arithmetic "2+5*2"))
-(arithmetic  "1+2+3")
-
-;; Doesn't handle whitspace, the terminals are way oversimplified / not working. No proper enum/typedef during parse.
-;; C EBNF from https://bitbucket.org/jlyonsmith/ebnf-visualizer/raw/1a866feaf38d34599027b37e362cfe42b9b6ba31/Grammars/c.ebnf
-(def c-parser (insta/parser (str (io/resource "c.ebnf"))))
-(c-parser "main(){}")
-
 ;; Experimental parser, this isn't built on some nice theoretical basis.
 ;; Just playing with a rough idea I've had nagging me around combining all phases in one go.
 ;; I would like Ced to have a pre-processor and C-to-Clojure compiler in one walk from source without external dependencies.
 ;; Not because it's practical, but to see if something interesting falls out from constraint.
 
 ;; Can/should this guy be folded into Mímir somehow? (Assuming it starts working properly.)
+
+(set! *warn-on-reflection* true)
 
 (declare node maybe-singleton)
 
