@@ -10,7 +10,8 @@
                  [com.nativelibs4java/anarres-jnaerator "1.2.8"
                   :exclusions [commons-collections/commons-collections
                                gnu.getopt/java-getopt]]]
-  :profiles {:dev {:dependencies [[xtc/rats "2.3.1"]]}}
+  :profiles {:dev {:dependencies [[xtc/rats "2.3.1"]
+                                  [org.clojure/tools.trace "0.7.5"]]}}
   :plugins [[lein-swank "1.4.5"]]
   :resource-paths ["resources"]
   :java-source-paths ["src"]

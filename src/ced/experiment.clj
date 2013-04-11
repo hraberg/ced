@@ -53,7 +53,7 @@
 (declare node maybe-singleton)
 
 (def ^:dynamic *allow-split-tokens* true) ;; Overrides post-delimiter.
-(def ^:dynamic *memoize-tokenization* false)
+(def ^:dynamic *memoize* true)
 (def ^:dynamic *capture-string-literals* false)
 (def ^:dynamic *pre-delimiter* #"\s*")
 (def ^:dynamic *post-delimiter* #"(:?\s+|$)")
@@ -131,11 +131,6 @@
                (->  in
                     (update-in [:result] *token-fn* token)))
              in) :token nil)))
-
-;; We're actually rather want something like this, which acts on a higher level:
-;; http://cs.nyu.edu/rgrimm/xtc/rats-intro.html#transient
-(when *memoize-tokenization*
-  (alter-var-root #'next-token memoize))
 
 (defn name-and-predicate [n]
   (let [[_ predicate n] (re-find #"^([!&]?)(.+)" (name n))]
@@ -275,10 +270,17 @@
        (fn parser
          ([in & options]
             (with-bindings (merge default-options (parser-options (apply hash-map options)))
-              (when-let [in (parse grammar in)]
-                (if (at-end? in)
-                  (*extract-result* in)
-                  (parse *failure-grammar* in)))))))))
+              (let [real-parse parse]
+                (try
+                  (when *memoize* ;; Just rebinding doesn't work for some reason
+                    (alter-var-root #'parse memoize))
+                  (when-let [in (parse grammar in)]
+                    (if (at-end? in)
+                      (*extract-result* in)
+                      (parse *failure-grammar* in)))
+                  (finally
+                   (when *memoize*
+                     (alter-var-root #'parse (constantly real-parse))))))))))))
 
 (def expression (create-parser
                  :expr      :add-sub
@@ -389,6 +391,11 @@
 
 (let [x 1 y 3]
   (right-recursive "x - 2 * y" :dynamic-reader (dynamic-reader)))
+
+;; Check that memoization actually works.
+(comment
+  (let [x 1 y 3]
+    (time (right-recursive "x - 2 * y" :dynamic-reader (dynamic-reader) :memoize false))))
 
 ;; "As example use of our combinators, consider the following ambiguous grammar from Tomita (1986)."
 ;; http://cs.uwindsor.ca/~richard/PUBLICATIONS/PADL_08.pdf
