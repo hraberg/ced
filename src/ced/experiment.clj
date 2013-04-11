@@ -62,6 +62,7 @@
 
 (def ^:dynamic *allow-split-tokens* true) ;; Overrides post-delimiter.
 (def ^:dynamic *memoize-tokenization* false)
+(def ^:dynamic *capture-string-literals* false)
 (def ^:dynamic *pre-delimiter* #"\s*")
 (def ^:dynamic *post-delimiter* #"(:?\s+|$)")
 (def ^:dynamic *offset* 0)
@@ -172,7 +173,7 @@
   (parse
     ([this] (parse (string-parser this)))
     ([this in]
-       (next-token in (re-pattern (Pattern/quote this)) false)))
+       (next-token in (re-pattern (Pattern/quote this)) *capture-string-literals*)))
 
   Named
   (parse [this in]
@@ -270,10 +271,11 @@
 (defn create-parser
   ([& rules]
      (let [[[default-options] rules] (split-with map? rules)
+           default-options (parser-options default-options)
            grammar (apply grammar rules)]
        (fn parser
          ([in & options]
-            (with-bindings (merge (parser-options default-options) (parser-options (apply hash-map options)))
+            (with-bindings (merge default-options (parser-options (apply hash-map options)))
               (when-let [in (parse grammar in)]
                 (if (at-end? in)
                   (*extract-result* in)
@@ -362,13 +364,15 @@
 ;; det ::= "a" | "the"  noun ::= "i" | "man" | "park" | "bat"
 ;; verb ::= "saw"       prep ::= "in" | "with"
 (def ambiguous (create-parser
+                {:capture-string-literals true}
+
                 :s    #{[:np :vp] [:s :pp]}
                 :pp   [:prep :np]
-                :det  #{#"a" #"the"}
-                :verb #"saw"
+                :det  #{"a" "the"}
+                :verb "saw"
                 :np   #{:noun [:det :noun] [:np :pp]}
                 :vp   [:verb :np]
-                :noun #{#"i" #"man" #"park" #"bat"}
-                :prep #{#"in" #"with"}))
+                :noun #{"i" "man" "park" "bat"}
+                :prep #{"in" "with"}))
 
 (ambiguous "i saw a man in the park with a bat")
