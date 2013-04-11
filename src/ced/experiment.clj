@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.core.reducers :as r]
             [clojure.string :as s]
+            [clojure.walk :as w]
             [clojure.zip :as z]
             [instaparse.core :as insta]
             [flatland.ordered.map :as om]
@@ -244,12 +245,15 @@
   ([op x] ((fun op) x))
   ([x op y] ((fun op) x y)))
 
+(defn action? [x]
+  ((some-fn fn? var?) x))
+
 (defn rule? [r]
-  (and (vector? r) (= 2 (count r)) (fn? (last r))))
+  (and (vector? r) (= 2 (count r)) (action? (last r))))
 
 (defn grammar [& rules]
   (let [rules (mapcat (fn [[rs [f]]] (if f (conj (vec (butlast rs)) [(last rs) f]) rs))
-                      (partition-all 2 (partition-by fn? rules)))]
+                      (partition-all 2 (partition-by action? rules)))]
     (into (om/ordered-map) (map (fn [[name rule]] [name (if (rule? rule)
                                                           rule
                                                           [rule])])
@@ -340,6 +344,18 @@
 ;; 8 <factor> ::= number
 ;; 9 | id
 
+(def left-recursive (create-parser
+                     :goal   :expr
+                     :expr   #{[:expr #"\+" :term]
+                               [:expr #"-" :term]
+                               :term}
+                     :term   #{[:term #"\*" :factor]
+                               [:term #"/" :factor]
+                               :factor}
+                     :factor #{#"[0-9]+" #"\w+"}))
+;; Doesn't work
+;; (left-recursive "x - 2 * y")
+
 ;; Right recursive
 ;; 1 <goal> ::= <expr>
 ;; 2 <expr> ::= <term> + <expr>
@@ -350,6 +366,29 @@
 ;; 7 | <factor>
 ;; 8 <factor> ::= number
 ;; 9 | id
+
+;; This feels a bit clunky
+(defmacro dynamic-reader []
+  (let [locals (vec (keys &env))]
+    `#(eval `(let [~'~locals ~~locals]
+               ~(read-string %)))))
+
+(def ^:dynamic *dynamic-reader*)
+
+(def right-recursive (create-parser
+                      {:suppress-tags true}
+
+                      :goal   :expr
+                      :expr   #{[:term #"\+" :expr]
+                                [:term #"-" :expr]
+                                :term} op
+                      :term   #{[:factor #"\*" :term]
+                                [:factor #"/" :term]
+                                :factor} op
+                      :factor #{#"[0-9]+" #"\w+"} #'*dynamic-reader*))
+
+(let [x 1 y 3]
+  (right-recursive "x - 2 * y" :dynamic-reader (dynamic-reader)))
 
 ;; "As example use of our combinators, consider the following ambiguous grammar from Tomita (1986)."
 ;; http://cs.uwindsor.ca/~richard/PUBLICATIONS/PADL_08.pdf
