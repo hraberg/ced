@@ -73,8 +73,11 @@
 (def ^:dynamic *start-rule* first)
 (def ^:dynamic *rules-seen-at-point* #{})
 
+(defn ctor-for-named [n]
+  (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n))))))
+
 (defn suppressed-defintion? [r]
-  (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
+  (let [suppressed-defintion ((ctor-for-named r) (str "<" (name r) ">"))]
     (if (*grammar* suppressed-defintion)
       suppressed-defintion
       r)))
@@ -118,8 +121,13 @@
 (when *memoize-tokenization*
   (alter-var-root #'next-token memoize))
 
+(defn name-and-predicate [n]
+  (let [ctor (ctor-for-named n)
+        [_ predicate n] (re-find #"^([!&]?)(.+)" (name n))]
+    [(ctor n) (when (seq predicate) (symbol predicate))]))
+
 (defn name-and-quantifier [n]
-  (let [ctor (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n)))))
+  (let [ctor (ctor-for-named n)
         [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
     [(ctor n) (when (seq quantifier) (symbol quantifier))]))
 
@@ -147,6 +155,7 @@
     (when-not (*rules-seen-at-point* [this in])
       (binding [*rules-seen-at-point* (conj *rules-seen-at-point* [this in])]
         (let [[this quantifier] (name-and-quantifier this)
+              [this predicate] (name-and-predicate this)
               suppressed (suppressed-rule? this)
               this (suppressed-defintion? this)]
           (if-let [[rule action] (some *grammar* [this suppressed])]
@@ -167,7 +176,11 @@
                         + (when-let [in (parse-one in)]
                             (recur in :*))
                         (parse-one in)))]
-              (parse-many in quantifier))
+              (let [result (parse-many in quantifier)]
+                (case predicate
+                  ! (when-not result in)
+                  & (when result in)
+                  result)))
             (throw (IllegalStateException. (str "Unknown rule: " this))))))))
 
   Set
@@ -230,6 +243,16 @@
 ;; 7 | <factor>
 ;; 8 <factor> ::= number
 ;; 9 | id
+
+;; PEG example from http://bford.info/pub/lang/packrat-icfp02-slides.pdf
+;; Additive → Multitive '+' Additive
+;; | Multitive
+;; Multitive → Primary '*' Multitive
+;; | Primary
+;; Primary → '(' Additive ')'
+;; | Decimal
+;; Decimal → '0' | ... | '9'
+
 
 (def expression (create-parser
                  :expr :add-sub
