@@ -70,6 +70,7 @@
 (def ^:dynamic *default-action* maybe-singleton)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
+(def ^:dynamic *start-rule* first)
 (def ^:dynamic *rules-seen-at-point* #{})
 
 (defn suppressed-defintion? [r]
@@ -177,7 +178,7 @@
   Map
   (parse [this in]
     (if-let [in (binding [*grammar* this]
-                  (parse (first (keys this)) (string-parser in)))]
+                  (parse (*start-rule* (os/into-ordered-set (keys this))) (string-parser in)))]
       (if (at-end? in)
         in
         (parse {:no-match [#"\S*" #(do (throw (IllegalStateException. (str "Don't know how to parse: " %))))]} in))))
