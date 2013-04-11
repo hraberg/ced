@@ -8,7 +8,7 @@
             [flatland.ordered.set :as os])
   (:import [java.util.regex Pattern]
            [java.util Map Set List]
-           [clojure.lang Named]
+           [clojure.lang Named ArityException]
            [flatland.ordered.set OrderedSet]))
 
 (set! *warn-on-reflection* true)
@@ -176,7 +176,10 @@
                           (binding [*rule* this]
                             (update-in result [:result]
                                        #(*token-fn* current-result
-                                                    (*node-fn* (apply (or action *default-action*) %))))))))
+                                                    (*node-fn* (try
+                                                                 (apply (or action *default-action*) %)
+                                                                 (catch ArityException _
+                                                                   (apply *default-action* %))))))))))
                     (parse-many [in quantifier]
                       (case quantifier
                         ? (or (parse-one in) in)
@@ -228,7 +231,6 @@
   (resolve (symbol s)))
 
 (defn op
-  ([x] x)
   ([op x] ((fun op) x))
   ([x op y] ((fun op) x y)))
 
