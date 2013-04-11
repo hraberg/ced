@@ -236,10 +236,12 @@
   (and (vector? r) (= 2 (count r)) (fn? (last r))))
 
 (defn grammar [& rules]
-  (into (om/ordered-map) (map (fn [[name rule]] [name (if (rule? rule)
-                                                        rule
-                                                        [rule])])
-                              (partition 2 (apply list rules)))))
+  (let [rules (mapcat (fn [[rs [f]]] (if f (conj (vec (butlast rs)) [(last rs) f]) rs))
+                      (partition-all 2 (partition-by fn? rules)))]
+    (into (om/ordered-map) (map (fn [[name rule]] [name (if (rule? rule)
+                                                          rule
+                                                          [rule])])
+                                (partition 2 rules)))))
 
 ;; Starts getting clunky, holding off to macrofiy it as this is not the core issue.
 (defn create-parser
@@ -289,13 +291,13 @@
 (def peg-expression (create-parser
                      {#'*suppress-tags* true}
 
-                     :additive  [#{[:multitive #"[+-]" :additive]
-                                   :multitive} op]
-                     :multitive [#{[:primary #"[*/]" :multitive]
-                                   :primary} op]
+                     :additive  #{[:multitive #"[+-]" :additive]
+                                  :multitive} op
+                     :multitive #{[:primary #"[*/]" :multitive]
+                                  :primary} op
                      :primary   #{["(" :additive ")"]
                                   :decimal}
-                     :decimal   [#"[0-9]+" read-string]))
+                     :decimal   #"[0-9]+" read-string))
 
 ;; This gets wrong precedence, regardless of using choice / OrderedSet or not. So something else.
 (peg-expression "1-2/(3-4)+5*6")
