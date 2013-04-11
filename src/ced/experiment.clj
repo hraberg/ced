@@ -70,6 +70,7 @@
                              (apply maybe-singleton args)
                              [*rule* (apply maybe-singleton args)])))
 (def ^:dynamic *default-action* maybe-singleton)
+(def ^:dynamic *grammar-actions* true)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
 (def ^:dynamic *failure-grammar* {:no-match [#"\S*" #(throw (IllegalStateException. (str "Don't know how to parse: " %)))]})
@@ -177,7 +178,8 @@
                             (update-in result [:result]
                                        #(*token-fn* current-result
                                                     (*node-fn* (try
-                                                                 (apply (or action *default-action*) %)
+                                                                 (apply (or (when *grammar-actions* action)
+                                                                            *default-action*) %)
                                                                  (catch ArityException _
                                                                    (apply *default-action* %))))))))))
                     (parse-many [in quantifier]
@@ -245,17 +247,25 @@
                                                           [rule])])
                                 (partition 2 rules)))))
 
+(defn parser-options [options]
+  (into {} (map (fn [[k v]]
+                  [(if (keyword? k)
+                     (or (resolve (symbol (str "*" (name k) "*")))
+                         (throw (IllegalArgumentException. (str "Unknown option: " k))))
+                     k) v]) options)))
+
 ;; Starts getting clunky, holding off to macrofiy it as this is not the core issue.
 (defn create-parser
   ([& rules]
-     (let [[[options] rules] (split-with map? rules)
+     (let [[[default-options] rules] (split-with map? rules)
            grammar (apply grammar rules)]
-       (fn parser [in]
-         (with-bindings (or options {})
-           (when-let [in (parse grammar in)]
-             (if (at-end? in)
-               (*extract-result* in)
-               (parse *failure-grammar* in))))))))
+       (fn parser
+         ([in & options]
+            (with-bindings (merge (parser-options default-options) (parser-options (apply hash-map options)))
+              (when-let [in (parse grammar in)]
+                (if (at-end? in)
+                  (*extract-result* in)
+                  (parse *failure-grammar* in)))))))))
 
 (def expression (create-parser
                  :expr      :add-sub
@@ -291,7 +301,7 @@
 
 ;; Should arguebly use choice instead of #{}
 (def peg-expression (create-parser
-                     {#'*suppress-tags* true}
+                     {:suppress-tags true}
 
                      :additive  #{[:multitive #"[+-]" :additive]
                                   :multitive} op
@@ -305,6 +315,7 @@
 (peg-expression "1-2/(3-4)+5*6")
 
 (peg-expression "2+5*2")
+(peg-expression "2+5*2" :grammar-actions false :suppress-tags false)
 
 ;; A different expression grammar from:
 ;; http://www.cs.umd.edu/class/fall2002/cmsc430/lec4.pdf
