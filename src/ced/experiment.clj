@@ -33,6 +33,7 @@
 (evaluate (arithmetic "1-2/(3-4)+5*6"))
 
 (evaluate (arithmetic "2+5*2"))
+(arithmetic  "1+2+3")
 
 ;; Doesn't handle whitspace, the terminals are way oversimplified / not working. No proper enum/typedef during parse.
 ;; C EBNF from https://bitbucket.org/jlyonsmith/ebnf-visualizer/raw/1a866feaf38d34599027b37e362cfe42b9b6ba31/Grammars/c.ebnf
@@ -61,8 +62,9 @@
 (def ^:dynamic *rule* nil)
 (def ^:dynamic *default-result* [])
 (def ^:dynamic *token-fn* conj)
+(def ^:dynamic *suppress-rules* false)
 (def ^:dynamic *node-fn* (fn [& args]
-                           (if (suppressed-rule? *rule*)
+                           (if (or *suppress-rules* (suppressed-rule? *rule*))
                              (apply maybe-singleton args)
                              [*rule* (apply maybe-singleton args)])))
 (def ^:dynamic *default-action* maybe-singleton)
@@ -70,13 +72,9 @@
 (def ^:dynamic *grammar* {})
 (def ^:dynamic *rules-seen-at-point* #{})
 
-(defn lookup-rule [rule]
-  (when-let [result (*grammar* rule)]
-    (if (sequential? result) result [result nil])))
-
 (defn suppressed-defintion? [r]
   (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
-    (if (lookup-rule suppressed-defintion)
+    (if (*grammar* suppressed-defintion)
       suppressed-defintion
       r)))
 
@@ -150,7 +148,7 @@
         (let [[this quantifier] (name-and-quantifier this)
               suppressed (suppressed-rule? this)
               this (suppressed-defintion? this)]
-          (if-let [[rule action] (some lookup-rule [this suppressed])]
+          (if-let [[rule action] (some *grammar* [this suppressed])]
             (letfn [(parse-one [in]
                       (let [current-result (:result in)]
                         (when-let [result (parse rule (assoc in :result *default-result*))]
@@ -179,11 +177,10 @@
   Map
   (parse [this in]
     (if-let [in (binding [*grammar* this]
-                  (parse (os/into-ordered-set (keys this)) (string-parser in)))]
-      (if-not (at-end? in)
-        (recur this in)
-        in)
-      (parse {:no-match [#"\S*" #(throw (IllegalStateException. (str "Don't know how to parse: " %)))]} in)))
+                  (parse (first (keys this)) (string-parser in)))]
+      (if (at-end? in)
+        in
+        (parse {:no-match [#"\S*" #(do (throw (IllegalStateException. (str "Don't know how to parse: " %))))]} in))))
 
   List
   (parse [this in]
@@ -202,10 +199,36 @@
 (def choice os/ordered-set)
 
 (defn grammar [& rules]
-  (into (om/ordered-map) (map vec (partition 2 (apply list rules)))))
+  (into (om/ordered-map) (map (fn [[name rule]] [name (if (vector? rule) rule [rule])])
+                              (partition 2 (apply list rules)))))
 
 (defn create-parser [& rules]
   (partial parse (apply grammar rules)))
+
+;; A different expression grammar from:
+;; http://www.cs.umd.edu/class/fall2002/cmsc430/lec4.pdf
+
+;; Left recursive
+;; 1 <goal> ::= <expr>
+;; 2 <expr> ::= <expr> + <term>
+;; 3 | <expr> - <term>
+;; 4 | <term>
+;; 5 <term> ::= <term> * <factor>
+;; 6 | <term> = <factor>
+;; 7 | <factor>
+;; 8 <factor> ::= number
+;; 9 | id
+
+;; Right recursive
+;; 1 <goal> ::= <expr>
+;; 2 <expr> ::= <term> + <expr>
+;; 3 | <term> - <expr>
+;; 4 | <term>
+;; 5 <term> ::= <factor> * <term>
+;; 6 | <factor> / <term>
+;; 7 | <factor>
+;; 8 <factor> ::= number
+;; 9 | id
 
 (def expression (create-parser
                  :expr :add-sub
@@ -218,7 +241,13 @@
                  :<term> #{:number ["(" :add-sub ")"]}
                  :number #"[0-9]+"))
 
-(expression "1+2")
-(expression "2+5*2")
+(expression "1")
+;; Stopped working after starting from first rule only, now needs left recurision.
+;(expression "1/2")
+;(expression "2+5*2")
 ;; Doesn't work yet
-;(expression "1-2/(3-4)+5*6")
+;(expression "1+2+3")
+;; Need to handle left recursion, tree from instaparse:
+;; [:expr [:add [:add [:number "1"] [:number "2"]] [:number "3"]]]
+
+;;(expression "1-2/(3-4)+5*6")
