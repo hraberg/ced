@@ -232,8 +232,13 @@
   ([op x] ((fun op) x))
   ([x op y] ((fun op) x y)))
 
+(defn rule? [r]
+  (and (vector? r) (= 2 (count r)) (fn? (last r))))
+
 (defn grammar [& rules]
-  (into (om/ordered-map) (map (fn [[name rule]] [name (if (vector? rule) rule [rule])])
+  (into (om/ordered-map) (map (fn [[name rule]] [name (if (rule? rule)
+                                                        rule
+                                                        [rule])])
                               (partition 2 (apply list rules)))))
 
 ;; Starts getting clunky, holding off to macrofiy it as this is not the core issue.
@@ -251,11 +256,11 @@
 (def expression (create-parser
                  :expr      :add-sub
                  :<add-sub> #{:mul-div :add :sub}
-                 :add       [[:add-sub "+" :mul-div]]
-                 :sub       [[:add-sub "-" :mul-div]]
+                 :add       [:add-sub "+" :mul-div]
+                 :sub       [:add-sub "-" :mul-div]
                  :<mul-div> #{:term :mul :div}
-                 :mul       [[:mul-div "*" :term]]
-                 :div       [[:mul-div "/" :term]]
+                 :mul       [:mul-div "*" :term]
+                 :div       [:mul-div "/" :term]
                  :<term>    #{:number ["(" :add-sub ")"]}
                  :number    #"[0-9]+"))
 
