@@ -163,7 +163,7 @@
 
   Named
   (parse [this in]
-    (when-not (*rules-seen-at-point* [this in])
+    (when-not (*rules-seen-at-point* [this in])  ;; Only guards against StackOverflow, doesn't actually handle left recursion.
       (binding [*rules-seen-at-point* (conj *rules-seen-at-point* [this in])]
         (let [[this quantifier] (name-and-quantifier this)
               [this predicate] (name-and-predicate this)
