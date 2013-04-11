@@ -188,7 +188,7 @@
                               (recur in)
                               in))
                         + (when-let [in (parse-one in)]
-                            (recur in :*))
+                            (parse-many in '*))
                         (parse-one in)))]
               (let [result (parse-many in quantifier)]
                 (case predicate
