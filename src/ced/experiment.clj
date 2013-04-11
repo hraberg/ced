@@ -47,6 +47,8 @@
 ;; I would like Ced to have a pre-processor and C-to-Clojure compiler in one walk from source without external dependencies.
 ;; Not because it's practical, but to see if something interesting falls out from constraint.
 
+;; Can/should this guy be folded into Mímir somehow? (Assuming it starts working properly.)
+
 (defn maybe-singleton
   ([])
   ([x] x)
