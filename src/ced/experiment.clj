@@ -7,7 +7,8 @@
             [flatland.ordered.set :as os])
   (:import [java.util.regex Pattern]
            [java.util Map Set List]
-           [clojure.lang Named]))
+           [clojure.lang Named]
+           [flatland.ordered.set OrderedSet]))
 
 (set! *warn-on-reflection* true)
 
@@ -62,15 +63,17 @@
 (def ^:dynamic *rule* nil)
 (def ^:dynamic *default-result* [])
 (def ^:dynamic *token-fn* conj)
-(def ^:dynamic *suppress-rules* false)
+(def ^:dynamic *suppress-tags* false)
 (def ^:dynamic *node-fn* (fn [& args]
-                           (if (or *suppress-rules* (suppressed-rule? *rule*))
+                           (if (or *suppress-tags* (suppressed-rule? *rule*))
                              (apply maybe-singleton args)
                              [*rule* (apply maybe-singleton args)])))
 (def ^:dynamic *default-action* maybe-singleton)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
+(def ^:dynamic *failure-grammar* {:no-match [#"\S*" #(throw (IllegalStateException. (str "Don't know how to parse: " %)))]})
 (def ^:dynamic *start-rule* first)
+(def ^:dynamic *extract-result* (comp first :result))
 (def ^:dynamic *rules-seen-at-point* #{})
 
 (defn ctor-for-named [n]
@@ -188,13 +191,14 @@
     (when-let [alternatives (seq (distinct (remove nil? (map #(parse % in) this))))]
       (apply max-key :offset (sort-by *alternatives-rank* alternatives))))
 
+  OrderedSet
+  (parse [this in]
+    (first (remove nil? (map #(parse % in) this))))
+
   Map
   (parse [this in]
-    (if-let [in (binding [*grammar* this]
-                  (parse (*start-rule* (os/into-ordered-set (keys this))) (string-parser in)))]
-      (if (at-end? in)
-        in
-        (parse {:no-match [#"\S*" #(do (throw (IllegalStateException. (str "Don't know how to parse: " %))))]} in))))
+    (binding [*grammar* this]
+      (parse (*start-rule* (os/into-ordered-set (keys this))) (string-parser in))))
 
   List
   (parse [this in]
@@ -212,12 +216,78 @@
 
 (def choice os/ordered-set)
 
+(defn fun [s]
+  (resolve (symbol s)))
+
+(defn op
+  ([x] x)
+  ([op x] ((fun op) x))
+  ([x op y] ((fun op) x y)))
+
 (defn grammar [& rules]
   (into (om/ordered-map) (map (fn [[name rule]] [name (if (vector? rule) rule [rule])])
                               (partition 2 (apply list rules)))))
 
-(defn create-parser [& rules]
-  (partial parse (apply grammar rules)))
+;; Starts getting clunky, holding off to macrofiy it as this is not the core issue.
+(defn create-parser
+  ([& rules]
+     (let [[[options] rules] (split-with map? rules)]
+       (let [grammar (apply grammar rules)]
+         (fn parser [in]
+           (with-bindings (or options {})
+             (when-let [in (parse grammar in)]
+               (if (at-end? in)
+                 (*extract-result* in)
+                 (parse *failure-grammar* in)))))))))
+
+(def expression (create-parser
+                 :expr      :add-sub
+                 :<add-sub> #{:mul-div :add :sub}
+                 :add       [[:add-sub "+" :mul-div]]
+                 :sub       [[:add-sub "-" :mul-div]]
+                 :<mul-div> #{:term :mul :div}
+                 :mul       [[:mul-div "*" :term]]
+                 :div       [[:mul-div "/" :term]]
+                 :<term>    #{:number ["(" :add-sub ")"]}
+                 :number    #"[0-9]+"))
+
+(expression "1")
+
+;; Stopped working after starting from first rule only, now needs left recurision.
+;(expression "1/2")
+;(expression "2+5*2")
+;; Doesn't work yet
+;(expression "1+2+3")
+;; Need to handle left recursion, tree from instaparse:
+;; [:expr [:add [:add [:number "1"] [:number "2"]] [:number "3"]]]
+
+;;(expression "1-2/(3-4)+5*6")
+
+;; PEG example from http://bford.info/pub/lang/packrat-icfp02-slides.pdf
+;; Additive → Multitive '+' Additive
+;; | Multitive
+;; Multitive → Primary '*' Multitive
+;; | Primary
+;; Primary → '(' Additive ')'
+;; | Decimal
+;; Decimal → '0' | ... | '9'
+
+;; Should arguebly use choice instead of #{}
+(def peg-expression (create-parser
+                     {#'*suppress-tags* true}
+
+                     :additive  [#{[:multitive #"[+-]" :additive]
+                                   :multitive} op]
+                     :multitive [#{[:primary #"[*/]" :multitive]
+                                   :primary} op]
+                     :primary   #{["(" :additive ")"]
+                                  :decimal}
+                     :decimal   [#"[0-9]+" read-string]))
+
+;; This gets wrong precedence, regardless of using choice / OrderedSet or not. So something else.
+(peg-expression "1-2/(3-4)+5*6")
+
+(peg-expression "2+5*2")
 
 ;; A different expression grammar from:
 ;; http://www.cs.umd.edu/class/fall2002/cmsc430/lec4.pdf
@@ -243,35 +313,3 @@
 ;; 7 | <factor>
 ;; 8 <factor> ::= number
 ;; 9 | id
-
-;; PEG example from http://bford.info/pub/lang/packrat-icfp02-slides.pdf
-;; Additive → Multitive '+' Additive
-;; | Multitive
-;; Multitive → Primary '*' Multitive
-;; | Primary
-;; Primary → '(' Additive ')'
-;; | Decimal
-;; Decimal → '0' | ... | '9'
-
-
-(def expression (create-parser
-                 :expr :add-sub
-                 :<add-sub> #{:mul-div :add :sub}
-                 :add [[:add-sub "+" :mul-div]]
-                 :sub [[:add-sub "-" :mul-div]]
-                 :<mul-div> #{:term :mul :div}
-                 :mul [[:mul-div "*" :term]]
-                 :div [[:mul-div "/" :term]]
-                 :<term> #{:number ["(" :add-sub ")"]}
-                 :number #"[0-9]+"))
-
-(expression "1")
-;; Stopped working after starting from first rule only, now needs left recurision.
-;(expression "1/2")
-;(expression "2+5*2")
-;; Doesn't work yet
-;(expression "1+2+3")
-;; Need to handle left recursion, tree from instaparse:
-;; [:expr [:add [:add [:number "1"] [:number "2"]] [:number "3"]]]
-
-;;(expression "1-2/(3-4)+5*6")
