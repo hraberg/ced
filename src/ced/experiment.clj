@@ -8,7 +8,7 @@
             [flatland.ordered.set :as os])
   (:import [java.util.regex Pattern]
            [java.util Map Set List]
-           [clojure.lang Named ArityException]
+           [clojure.lang Keyword ArityException]
            [flatland.ordered.set OrderedSet]))
 
 (set! *warn-on-reflection* true)
@@ -49,16 +49,7 @@
 
 ;; Can/should this guy be folded into Mímir somehow? (Assuming it starts working properly.)
 
-(defn maybe-singleton
-  ([])
-  ([x] x)
-  ([x & args] (vec (cons x args))))
-
-(defn suppressed-rule? [r]
-  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
-    (keyword r)))
-
-(declare node)
+(declare node maybe-singleton)
 
 (def ^:dynamic *allow-split-tokens* true) ;; Overrides post-delimiter.
 (def ^:dynamic *memoize-tokenization* false)
@@ -70,8 +61,8 @@
 (def ^:dynamic *default-result* [])
 (def ^:dynamic *token-fn* conj)
 (def ^:dynamic *suppress-tags* false)
-(def ^:dynamic *node-fn* node)
-(def ^:dynamic *default-action* maybe-singleton)
+(def ^:dynamic *node-fn* #'node)
+(def ^:dynamic *default-action* #'maybe-singleton)
 (def ^:dynamic *grammar-actions* true)
 (def ^:dynamic *alternatives-rank* (comp count flatten :result))
 (def ^:dynamic *grammar* {})
@@ -80,8 +71,17 @@
 (def ^:dynamic *extract-result* (comp first :result))
 (def ^:dynamic *rules-seen-at-point* #{})
 
+(defn maybe-singleton
+  ([])
+  ([x] x)
+  ([x & args] (vec (cons x args))))
+
+(defn suppressed-rule? [r]
+  (when-let [[ _ r] (re-find #"^<(.+)>$" (name r))]
+    (keyword r)))
+
 (defn node? [x]
-  (and (vector? x) (instance? Named (first x))))
+  (and (vector? x) (keyword? (first x))))
 
 (defn node [& args]
   (let [args (apply maybe-singleton args)]
@@ -91,11 +91,8 @@
         (vec (cons *rule* args))
         [*rule* args]))))
 
-(defn ctor-for-named [n]
-  (resolve (symbol (s/lower-case (.getSimpleName ^Class (type n))))))
-
 (defn suppressed-defintion? [r]
-  (let [suppressed-defintion ((ctor-for-named r) (str "<" (name r) ">"))]
+  (let [suppressed-defintion (keyword (str "<" (name r) ">"))]
     (if (*grammar* suppressed-defintion)
       suppressed-defintion
       r)))
@@ -140,14 +137,12 @@
   (alter-var-root #'next-token memoize))
 
 (defn name-and-predicate [n]
-  (let [ctor (ctor-for-named n)
-        [_ predicate n] (re-find #"^([!&]?)(.+)" (name n))]
-    [(ctor n) (when (seq predicate) (symbol predicate))]))
+  (let [[_ predicate n] (re-find #"^([!&]?)(.+)" (name n))]
+    [(keyword n) (when (seq predicate) (symbol predicate))]))
 
 (defn name-and-quantifier [n]
-  (let [ctor (ctor-for-named n)
-        [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
-    [(ctor n) (when (seq quantifier) (symbol quantifier))]))
+  (let [[_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
+    [(keyword n) (when (seq quantifier) (symbol quantifier))]))
 
 ;; Not sure this name is right
 (defprotocol IParser
@@ -175,7 +170,7 @@
     ([this in]
        (next-token in (re-pattern (Pattern/quote this)) *capture-string-literals*)))
 
-  Named
+  Keyword
   (parse [this in]
     (when-not (*rules-seen-at-point* [this in])  ;; Only guards against StackOverflow, doesn't actually handle left recursion.
       (binding [*rules-seen-at-point* (conj *rules-seen-at-point* [this in])]
