@@ -1,5 +1,6 @@
 (ns ced.experiment
   (:require [clojure.java.io :as io]
+            [clojure.core.reducers :as r]
             [clojure.string :as s]
             [clojure.zip :as z]
             [instaparse.core :as insta]
@@ -134,6 +135,13 @@
         [_ n quantifier] (re-find #"(.+?)([+*?]?)$" (name n))]
     [(ctor n) (when (seq quantifier) (symbol quantifier))]))
 
+(defn fold-into [ctor coll]
+  (r/fold (r/monoid into ctor) conj coll))
+
+;; This could potentially be a tree, but requires to restructure and use reducers all over the place.
+(defn valid-choices [in ms]
+  (fold-into vector (r/remove nil? (r/map #(parse % in) (vec ms)))))
+
 ;; Not sure this name is right
 (defprotocol IParser
   (parse [this] [this in]))
@@ -188,12 +196,12 @@
 
   Set
   (parse [this in]
-    (when-let [alternatives (seq (distinct (remove nil? (map #(parse % in) this))))]
+    (when-let [alternatives (seq (distinct (valid-choices in this)))]
       (apply max-key :offset (sort-by *alternatives-rank* alternatives))))
 
   OrderedSet
   (parse [this in]
-    (first (remove nil? (map #(parse % in) this))))
+    (first (valid-choices in this)))
 
   Map
   (parse [this in]
