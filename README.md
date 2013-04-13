@@ -28,13 +28,8 @@ hello, world
 
 [Expert C Programming: Deep C Secrets](http://www.amazon.com/Expert-Programming-Peter-van-Linden/dp/0131774298) Peter van der Linden, 1994
 
-[xtc](http://cs.nyu.edu/rgrimm/xtc/) Paul Gazzillo and Robert Grimm, 2006-2012 - "The xtc (eXTensible Compiler) project is exploring novel programming languages and tools to improve the expressiveness, safety, and efficiency of complex systems."
-
-[Rats!](http://cs.nyu.edu/rgrimm/xtc/rats-intro.html) Robert Grimm, 2004-2012 - "Grammars for Rats! build on the Parsing Expression Grammar (PEG) formalism described in Brian Ford's [Parsing Expression Grammars](http://www.brynosaurus.com/pub/lang/peg.pdf) paper.
-
-[JCPP](http://www.anarres.org/projects/jcpp/) Shevek, 2006-2011 - "A Java C Preprocessor"
-
-[Instaparse](https://github.com/Engelberg/instaparse) Mark Engelberg, 2013 - "What if context-free grammars were as easy to use as regular expressions?"
+[PEG-based transformer provides front-, middleand back-end stages in a simple compiler](http://www.vpri.org/pdf/tr2010003_PEG.pdf)
+Ian Piumarta, 2010
 
 [ZETA-C-PD](http://bitsavers.informatik.uni-stuttgart.de/bits/TI/Explorer/zeta-c/) Scott L. Burson, 1987, 2003 - "Zeta-C is a C implementation for Lisp Machines that works by translating C into Lisp."
 
@@ -51,6 +46,14 @@ hello, world
 [LLJVM](http://da.vidr.cc/projects/lljvm/) David A Roberts, 2010 - "LLJVM provides a set of tools and libraries for running comparatively low level languages (such as C) on the JVM."
 
 [µClibc](http://www.uclibc.org/about.html) Erik Andersen, 1999-2012 - "A C library for embedded Linux"
+
+[xtc](http://cs.nyu.edu/rgrimm/xtc/) Paul Gazzillo and Robert Grimm, 2006-2012 - "The xtc (eXTensible Compiler) project is exploring novel programming languages and tools to improve the expressiveness, safety, and efficiency of complex systems."
+
+[Rats!](http://cs.nyu.edu/rgrimm/xtc/rats-intro.html) Robert Grimm, 2004-2012 - "Grammars for Rats! build on the Parsing Expression Grammar (PEG) formalism described in Brian Ford's [Parsing Expression Grammars](http://www.brynosaurus.com/pub/lang/peg.pdf) paper.
+
+[JCPP](http://www.anarres.org/projects/jcpp/) Shevek, 2006-2011 - "A Java C Preprocessor"
+
+[Instaparse](https://github.com/Engelberg/instaparse) Mark Engelberg, 2013 - "What if context-free grammars were as easy to use as regular expressions?"
 
 
 ## License
